@@ -1,0 +1,27 @@
+flowchart TD
+    A([Main Loop Start]) --> B["Read ADC sensors:\nTPS → A0\nFPS → A1\nIAT → A2\nET  → A3"]
+
+    B --> C{CKPS timeout\nexceeded?}
+    C -- Yes --> D[Disable injector\nD4 = LOW]
+    D --> E[Disable pump\nD3 PWM = 0]
+    E --> F[pump_active = false\nrpm = 0]
+    F --> G[Green LED solid\nRed LED off]
+    C -- No --> H{pump_active?}
+
+    H -- Yes --> I[Compute target pressure\nfrom RPM pressure table]
+    I --> J["PID: error = target − FPS_bar\nupdate integral & derivative\nnew_pwm = clamp(Kp·e + Ki·∫e + Kd·de/dt)"]
+    J --> K[Write new_pwm to pump D3]
+    H -- No --> L[Pump PWM = 0]
+
+    K --> M[Update LEDs]
+    L --> M
+    G --> M
+
+    M --> N{Serial bytes\navailable?}
+    N -- Yes --> O[Read and assemble packet\ncheck CRC]
+    O --> P{CRC OK?}
+    P -- Yes --> Q["Dispatch command:\n• READ_SENSORS → send data packet\n• WRITE_MAP → update map + EEPROM\n• WRITE_PID → update PID + EEPROM\n• WRITE_PRESSURE → update table + EEPROM\n• PUMP_PRIME → run pump briefly"]
+    P -- No --> R[Send NACK / discard]
+    Q --> A
+    R --> A
+    N -- No --> A

@@ -1,0 +1,285 @@
+#include "comms.h"
+#include "asf_efi.h"
+#include "pump.h"
+#include "eeprom_map.h"
+
+// Maximum payload size: CMD_WRITE_MAP = 1(cmd) + 120(data) = 121 bytes
+// CMD_WRITE_AXIS = 1(cmd) + 34(data) = 35 bytes
+#define RX_BUF_SIZE 130
+
+// Receive state machine
+enum RxState { RX_IDLE, RX_LEN, RX_DATA, RX_CRC };
+static RxState  rx_state     = RX_IDLE;
+static uint8_t  rx_buf[RX_BUF_SIZE];
+static uint8_t  rx_len       = 0;   // expected total bytes (cmd + payload)
+static uint8_t  rx_pos       = 0;   // bytes received so far into rx_buf
+
+// ---- CRC-8/SMBUS (poly 0x07, init 0x00) ------------------------------------
+
+static uint8_t calcCRC(const uint8_t *data, uint8_t len)
+{
+    uint8_t crc = 0x00;
+    for (uint8_t i = 0; i < len; i++) {
+        crc ^= data[i];
+        for (uint8_t b = 0; b < 8; b++) {
+            crc = (crc & 0x80) ? (crc << 1) ^ 0x07 : (crc << 1);
+        }
+    }
+    return crc;
+}
+
+// ---- Packet transmit helpers ------------------------------------------------
+
+static void sendByte(uint8_t b)   { Serial.write(b); }
+
+static void sendPacket(uint8_t cmd, const uint8_t *payload, uint8_t plen)
+{
+    sendByte(PKT_START);
+    sendByte(1 + plen);          // LEN = cmd byte + payload
+    sendByte(cmd);
+    for (uint8_t i = 0; i < plen; i++) sendByte(payload[i]);
+
+    uint8_t crc_buf[RX_BUF_SIZE];
+    crc_buf[0] = cmd;
+    for (uint8_t i = 0; i < plen; i++) crc_buf[1 + i] = payload[i];
+    sendByte(calcCRC(crc_buf, 1 + plen));
+}
+
+static void sendACK()  { sendPacket(CMD_ACK,  nullptr, 0); }
+static void sendNACK() { sendPacket(CMD_NACK, nullptr, 0); }
+
+// ---- Float serialisation (big-endian) ---------------------------------------
+
+static void packFloat(uint8_t *buf, float v)
+{
+    uint32_t raw;
+    memcpy(&raw, &v, 4);
+    buf[0] = (raw >> 24) & 0xFF;
+    buf[1] = (raw >> 16) & 0xFF;
+    buf[2] = (raw >>  8) & 0xFF;
+    buf[3] =  raw        & 0xFF;
+}
+
+static float unpackFloat(const uint8_t *buf)
+{
+    uint32_t raw = ((uint32_t)buf[0] << 24)
+                 | ((uint32_t)buf[1] << 16)
+                 | ((uint32_t)buf[2] <<  8)
+                 |  (uint32_t)buf[3];
+    float v;
+    memcpy(&v, &raw, 4);
+    return v;
+}
+
+// ---- Command dispatcher -----------------------------------------------------
+
+static void dispatchCommand(const uint8_t *buf, uint8_t len)
+{
+    if (len < 1) { sendNACK(); return; }
+
+    uint8_t cmd     = buf[0];
+    const uint8_t *payload = buf + 1;
+    uint8_t plen    = len - 1;
+
+    switch (cmd) {
+
+    case CMD_READ_SENSORS:
+        sendSensorData();
+        break;
+
+    case CMD_WRITE_MAP:
+        if (plen != RPM_BINS * TPS_BINS * 2) { sendNACK(); return; }
+        for (uint8_t r = 0; r < RPM_BINS; r++)
+            for (uint8_t t = 0; t < TPS_BINS; t++) {
+                uint8_t idx = (r * TPS_BINS + t) * 2;
+                inj_map[r][t] = ((uint16_t)payload[idx] << 8) | payload[idx + 1];
+            }
+        saveInjectionMap();
+        sendACK();
+        break;
+
+    case CMD_WRITE_PID:
+        if (plen != 12) { sendNACK(); return; }
+        pid_kp = unpackFloat(payload);
+        pid_ki = unpackFloat(payload + 4);
+        pid_kd = unpackFloat(payload + 8);
+        savePIDParams();
+        sendACK();
+        break;
+
+    case CMD_WRITE_PRESSURE:
+        if (plen != 10) { sendNACK(); return; }
+        pressure_low_bar       = unpackFloat(payload);
+        pressure_high_bar      = unpackFloat(payload + 4);
+        pressure_threshold_rpm = ((uint16_t)payload[8] << 8) | payload[9];
+        savePressureTable();
+        sendACK();
+        break;
+
+    case CMD_PUMP_PRIME:
+        primePump();
+        sendACK();
+        break;
+
+    case CMD_PUMP_SET:
+        if (plen != 1) { sendNACK(); return; }
+        pump_manual = (payload[0] != 0);
+        if (pump_manual) {
+            pump_active = true;
+        } else {
+            pump_active = false;
+            disablePump();
+        }
+        sendACK();
+        break;
+
+    case CMD_WRITE_IAT_CORR:
+        if (plen != IAT_BINS * 2) { sendNACK(); return; }
+        for (uint8_t i = 0; i < IAT_BINS; i++)
+            iat_correction[i] = ((uint16_t)payload[i * 2] << 8) | payload[i * 2 + 1];
+        saveIATCorrection();
+        sendACK();
+        break;
+
+    case CMD_WRITE_ET_CORR:
+        if (plen != ET_BINS * 2) { sendNACK(); return; }
+        for (uint8_t i = 0; i < ET_BINS; i++)
+            et_correction[i] = ((uint16_t)payload[i * 2] << 8) | payload[i * 2 + 1];
+        saveETCorrection();
+        sendACK();
+        break;
+
+    case CMD_READ_MAP: {
+        uint8_t buf[RPM_BINS * TPS_BINS * 2];
+        for (uint8_t r = 0; r < RPM_BINS; r++)
+            for (uint8_t t = 0; t < TPS_BINS; t++) {
+                uint8_t idx = (r * TPS_BINS + t) * 2;
+                buf[idx]     = inj_map[r][t] >> 8;
+                buf[idx + 1] = inj_map[r][t] & 0xFF;
+            }
+        sendPacket(CMD_READ_MAP, buf, sizeof(buf));
+        break;
+    }
+
+    case CMD_WRITE_AXIS: {
+        // Payload: 12 × uint16 RPM (24 bytes) + 5 × uint16 TPS per-mille (10 bytes) = 34 bytes
+        if (plen != RPM_BINS * 2 + TPS_BINS * 2) { sendNACK(); return; }
+        for (uint8_t i = 0; i < RPM_BINS; i++)
+            rpm_axis[i] = ((uint16_t)payload[i * 2] << 8) | payload[i * 2 + 1];
+        for (uint8_t i = 0; i < TPS_BINS; i++) {
+            uint8_t off = RPM_BINS * 2 + i * 2;
+            tps_axis[i] = ((uint16_t)payload[off] << 8) | payload[off + 1];
+        }
+        saveAxisBreakpoints();
+        sendACK();
+        break;
+    }
+
+    case CMD_READ_AXIS: {
+        uint8_t buf[RPM_BINS * 2 + TPS_BINS * 2];
+        for (uint8_t i = 0; i < RPM_BINS; i++) {
+            buf[i * 2]     = rpm_axis[i] >> 8;
+            buf[i * 2 + 1] = rpm_axis[i] & 0xFF;
+        }
+        for (uint8_t i = 0; i < TPS_BINS; i++) {
+            uint8_t off = RPM_BINS * 2 + i * 2;
+            buf[off]     = tps_axis[i] >> 8;
+            buf[off + 1] = tps_axis[i] & 0xFF;
+        }
+        sendPacket(CMD_READ_AXIS, buf, sizeof(buf));
+        break;
+    }
+
+    default:
+        sendNACK();
+        break;
+    }
+}
+
+// ---- Public API -------------------------------------------------------------
+
+void initComms()
+{
+    Serial.begin(SERIAL_BAUD);
+}
+
+void processSerial()
+{
+    while (Serial.available()) {
+        uint8_t byte_in = (uint8_t)Serial.read();
+
+        switch (rx_state) {
+        case RX_IDLE:
+            if (byte_in == PKT_START) rx_state = RX_LEN;
+            break;
+
+        case RX_LEN:
+            rx_len   = byte_in;
+            rx_pos   = 0;
+            if (rx_len == 0 || rx_len > RX_BUF_SIZE) {
+                rx_state = RX_IDLE;   // invalid length
+            } else {
+                rx_state = RX_DATA;
+            }
+            break;
+
+        case RX_DATA:
+            rx_buf[rx_pos++] = byte_in;
+            if (rx_pos >= rx_len) rx_state = RX_CRC;
+            break;
+
+        case RX_CRC:
+            if (byte_in == calcCRC(rx_buf, rx_len)) {
+                dispatchCommand(rx_buf, rx_len);
+            } else {
+                sendNACK();
+            }
+            rx_state = RX_IDLE;
+            break;
+        }
+    }
+}
+
+void printSensorDebug()
+{
+    Serial.print(F("RPM:"));    Serial.print(rpm);
+    Serial.print(F(" TPS:"));   Serial.print(tps / 10); Serial.print(F("%"));
+    Serial.print(F(" FPS:"));   Serial.print(fps_bar, 2);  Serial.print(F("bar"));
+    Serial.print(F(" IAT:"));   Serial.print(iat_degc); Serial.print(F("C("));
+    Serial.print(analogRead(PIN_IAT)); Serial.print(F(")"));
+    Serial.print(F(" ET:"));    Serial.print(et_degc);  Serial.print(F("C("));
+    Serial.print(analogRead(PIN_ET));  Serial.print(F(")"));
+    Serial.print(F(" PUMP:"));  Serial.print(pump_active ? F("ON") : F("OFF"));
+    Serial.println();
+}
+
+void sendSensorData()
+{
+    uint8_t buf[13];
+    // rpm: uint16
+    buf[0] = rpm >> 8;
+    buf[1] = rpm & 0xFF;
+    // tps: uint16, 0–1000 representing 0.000–1.000 (already in per-mille)
+    buf[2] = tps >> 8;
+    buf[3] = tps & 0xFF;
+    // fps: uint16, value × 100 (0.00–10.00 bar)
+    uint16_t fps_u = (uint16_t)(fps_bar * 100.0f);
+    buf[4] = fps_u >> 8;
+    buf[5] = fps_u & 0xFF;
+    // iat: int16, value × 10 (0.1 °C resolution)
+    int16_t iat_i = (int16_t)((int32_t)iat_degc * 10);
+    buf[6]  = (uint8_t)(iat_i >> 8);
+    buf[7]  = (uint8_t)(iat_i & 0xFF);
+    // et: int16, value × 10
+    int16_t et_i = (int16_t)((int32_t)et_degc * 10);
+    buf[8]  = (uint8_t)(et_i >> 8);
+    buf[9]  = (uint8_t)(et_i & 0xFF);
+    // pump active flag
+    buf[10] = pump_active ? 1 : 0;
+    // bat_v: uint16, value × 100 (e.g. 12.34 V → 1234)
+    uint16_t bat_u = (uint16_t)(bat_v * 100.0f);
+    buf[11] = bat_u >> 8;
+    buf[12] = bat_u & 0xFF;
+
+    sendPacket(CMD_READ_SENSORS, buf, sizeof(buf));
+}

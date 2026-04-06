@@ -1,0 +1,28 @@
+flowchart LR
+    subgraph INTERRUPT ["⚡ CKPS Interrupt (parallel)"]
+        direction TD
+        I1([Crankshaft pulse received]) --> I2[Measure time between pulses]
+        I2 --> I3[Update RPM value]
+    end
+
+    subgraph LOOP ["🔁 Main Loop"]
+        direction TD
+        S[/"Read Sensors:\nThrottle TPS · Fuel pressure FPS\nAir temp IAT · Engine temp ET"\]
+        S --> P1[Compare actual pressure\nvs. target pressure]
+        P1 --> P2[Adjust pump speed\nvia PWM signal]
+        P2 --> J1[Look up injection time\nfrom RPM × Throttle map]
+        J1 --> J2[Apply temperature corrections]
+        J2 --> J3[Calculate injector closing time]
+        J3 --> J4[Open injector]
+        J4 --> C1[Receive commands from PC:\nupdate map / settings]
+        C1 --> C2[Send live data to PC:\nRPM, pressures, temperatures]
+        C2 --> S
+    end
+
+    subgraph TIMER ["⏱ Timer Interrupt (parallel)"]
+        direction TD
+        T1([Timer fires at closing time]) --> T2[Close injector]
+    end
+
+    INTERRUPT -. RPM .-> LOOP
+    LOOP -. sets closing time .-> TIMER

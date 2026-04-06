@@ -1,0 +1,15 @@
+flowchart TD
+    A([CKPS Falling Edge]) --> B["Capture Timer1 value = t_now\nperiod = t_now − t_prev\nt_prev = t_now"]
+    B --> C[Reset CKPS timeout counter]
+    C --> D[rpm = 60 / period_in_seconds]
+    D --> E{pulse_count < 2?}
+    E -- Yes --> F[pulse_count++]
+    F --> G{pulse_count == 2?}
+    G -- Yes --> H[pump_active = true\nenable pump PID]
+    G -- No --> I([Return])
+    H --> I
+    E -- No --> J{rpm < RPM_SYNC_THRESHOLD?}
+    J -- "Yes (synchronous mode)" --> K[Trigger injection now]
+    J -- "No (60 Hz mode)" --> L[Injection driven by\n60 Hz timer]
+    K --> I
+    L --> I

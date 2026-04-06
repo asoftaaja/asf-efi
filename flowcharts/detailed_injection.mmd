@@ -1,0 +1,13 @@
+flowchart TD
+    A([Injection Trigger]) --> B["Look up base_pw\nfrom map 12×5\nusing rpm_index × tps_index"]
+    B --> C["Apply IAT coefficient\niat_pw = base_pw × IAT_correction"]
+    C --> D["Apply ET coefficient\nfinal_pw = iat_pw × ET_correction"]
+    D --> E{final_pw > 0?}
+    E -- No --> F([Return, no injection])
+    E -- Yes --> G["D4 = HIGH — injector ON\nD13 = HIGH — red LED ON\nStart timer = final_pw µs"]
+    G --> H([Return to caller])
+
+    subgraph ISR ["Injector Timer ISR"]
+        I(["Timer fires after final_pw µs"]) --> J["D4 = LOW — injector OFF\nD13 = LOW — red LED OFF"]
+        J --> K([Return])
+    end

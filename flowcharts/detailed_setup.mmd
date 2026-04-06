@@ -1,0 +1,10 @@
+flowchart TD
+    A([Power On / Reset]) --> B["Configure pins:\nA0=TPS, A1=FPS, A2=IAT, A3=ET\nD3=pump PWM, D4=injector\nD8=ICP, D12=green LED, D13=red LED"]
+    B --> C[Init Timer1 for CKPS input capture on D8\nfalling edge trigger]
+    C --> D[Init Timer2 for pump PWM on D3]
+    D --> E[Init Serial port]
+    E --> F[Load injection map 12x5 from EEPROM]
+    F --> G[Load PID coefficients Kp/Ki/Kd from EEPROM]
+    G --> H[Load target pressure table from EEPROM]
+    H --> I[Light green LED solid → system initialized]
+    I --> J([Enter Main Loop])
