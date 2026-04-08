@@ -16,6 +16,9 @@
 // millis() timestamp of the last injection firing (used for LED blink logic)
 extern volatile uint32_t last_injection_ms;
 
+// Last injector pulse width in µs (used for duty cycle reporting)
+extern volatile uint16_t last_pulse_width_us;
+
 void     initInjection();
 
 // Compute final pulse width (µs) from map + corrections

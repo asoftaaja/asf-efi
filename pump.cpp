@@ -1,6 +1,8 @@
 #include "pump.h"
 #include "asf_efi.h"
 
+uint8_t pump_pwm = 0;   // last PWM value written to pump output
+
 // PID state
 static float    pid_integral  = 0.0f;
 static float    pid_prev_err  = 0.0f;
@@ -36,7 +38,8 @@ void updatePump(float fps_bar_val, uint16_t rpm_val)
     pid_prev_err     = error;
 
     float output = pid_kp * error + pid_ki * pid_integral + pid_kd * derivative;
-    analogWrite(PIN_PUMP, (uint8_t)constrain(output, 0.0f, 255.0f));
+    pump_pwm = (uint8_t)constrain(output, 0.0f, 255.0f);
+    analogWrite(PIN_PUMP, pump_pwm);
 }
 
 void disablePump()
@@ -44,6 +47,7 @@ void disablePump()
     priming = false;
     pid_integral  = 0.0f;
     pid_prev_err  = 0.0f;
+    pump_pwm = 0;
     analogWrite(PIN_PUMP, 0);
 }
 
@@ -51,12 +55,14 @@ void primePump()
 {
     priming      = true;
     prime_end_ms = millis() + PRIME_DURATION_MS;
+    pump_pwm = 255;
     analogWrite(PIN_PUMP, 255);
 }
 
 bool isPriming()
 {
     if (priming && millis() >= prime_end_ms) {
+        pump_pwm = 0;
         analogWrite(PIN_PUMP, 0);
         priming = false;
     }

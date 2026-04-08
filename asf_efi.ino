@@ -129,6 +129,7 @@ void loop()
         // primePump() already set full power; isPriming() handles the timeout
     } else if (pump_active) {
         if (pump_mode_always_on) {
+            pump_pwm = 255;
             analogWrite(PIN_PUMP, 255);
         } else {
             updatePump(fps_bar, rpm);

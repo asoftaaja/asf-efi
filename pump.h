@@ -8,6 +8,8 @@
 
 #define PRIME_DURATION_MS 2000   // pump prime run time
 
+extern uint8_t pump_pwm;   // last analogWrite value written to pump (0–255)
+
 void initPump();
 void updatePump(float fps_bar, uint16_t rpm);  // PID iteration, call each loop
 void disablePump();                            // immediate shutoff

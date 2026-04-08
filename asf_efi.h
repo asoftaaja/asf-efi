@@ -15,6 +15,7 @@ extern volatile uint16_t rpm;
 extern volatile bool     pump_active;
 extern bool              pump_manual;        // true = pump held on by PC test command
 extern bool              pump_mode_always_on; // false = PID (default), true = full PWM when running
+extern uint8_t           pump_pwm;           // last analogWrite value to pump (0–255)
 
 extern uint16_t rpm_axis[RPM_BINS];
 extern uint16_t tps_axis[TPS_BINS];   // 0–1000 per-mille breakpoints

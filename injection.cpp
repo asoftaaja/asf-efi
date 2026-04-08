@@ -1,7 +1,8 @@
 #include "injection.h"
 #include "asf_efi.h"
 
-volatile uint32_t last_injection_ms = 0;
+volatile uint32_t last_injection_ms   = 0;
+volatile uint16_t last_pulse_width_us = 0;
 
 // RPM and TPS axis breakpoints for the 12×5 injection map
 // Mutable so they can be updated via the serial command CMD_WRITE_AXIS and saved to EEPROM.
@@ -105,6 +106,7 @@ uint16_t calculatePulseWidth(uint16_t rpm_val, uint16_t tps_val,
 void fireInjector(uint16_t pulse_width_us)
 {
     if (pulse_width_us == 0) return;
+    last_pulse_width_us = pulse_width_us;
 
     // Convert µs to Timer1 ticks (prescaler 8, 0.5 µs/tick → multiply by 2)
     uint16_t ticks = (uint16_t)min((uint32_t)pulse_width_us * 2UL, (uint32_t)65000U);

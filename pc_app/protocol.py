@@ -40,7 +40,8 @@ TPS_BREAKPOINTS = [0, 250, 500, 750, 1000]   # per-mille integers (0–1000)
 
 class SensorData:
     def __init__(self, rpm=0, tps=0.0, fps_bar=0.0, iat_degc=0.0,
-                 et_degc=0.0, pump_active=False, bat_v=0.0):
+                 et_degc=0.0, pump_active=False, bat_v=0.0,
+                 pump_duty=0, inj_duty=0.0):
         self.rpm = rpm
         self.tps = tps             # 0.0 – 1.0
         self.fps_bar = fps_bar
@@ -48,6 +49,8 @@ class SensorData:
         self.et_degc = et_degc
         self.pump_active = pump_active
         self.bat_v = bat_v         # battery voltage in V
+        self.pump_duty = pump_duty  # raw PWM 0–255
+        self.inj_duty = inj_duty    # injector duty cycle in percent (0.0–100.0)
 
 
 class PIDParams:
@@ -167,10 +170,11 @@ def decode_axis(payload: bytes) -> Tuple[List[int], List[float]]:
 
 
 def decode_sensor_data(payload: bytes) -> SensorData:
-    """Unpack 13-byte sensor response payload."""
-    if len(payload) < 13:
+    """Unpack 16-byte sensor response payload."""
+    if len(payload) < 16:
         raise ValueError(f"Sensor payload too short: {len(payload)}")
-    rpm, tps_raw, fps_raw, iat_raw, et_raw, pump_active, bat_raw = struct.unpack('>HHHhhBH', payload[:13])
+    rpm, tps_raw, fps_raw, iat_raw, et_raw, pump_active, bat_raw, pump_pwm, inj_duty_pm = \
+        struct.unpack('>HHHhhBHBH', payload[:16])
     return SensorData(
         rpm=rpm,
         tps=tps_raw / 1000.0,
@@ -179,6 +183,8 @@ def decode_sensor_data(payload: bytes) -> SensorData:
         et_degc=et_raw / 10.0,
         pump_active=bool(pump_active),
         bat_v=bat_raw / 100.0,
+        pump_duty=pump_pwm,
+        inj_duty=inj_duty_pm / 10.0,
     )
 
 

@@ -80,13 +80,19 @@ class MainWindow(tk.Tk):
             self._sync_bar, text="Dismiss", command=self._dismiss_sync_warning
         )
 
-        # Sensor readout (always visible)
-        self._sensor_panel = SensorPanel(self, self._state)
-        self._sensor_panel.pack(fill="x", padx=8, pady=4)
+        # Body: notebook on the left, sensor panel on the right
+        self._body_frame = ttk.Frame(self)
+        self._body_frame.pack(fill="both", expand=True, padx=8, pady=4)
+
+        self._sensor_panel = SensorPanel(self._body_frame, self._state)
+        self._sensor_panel.pack(side="right", fill="y", padx=(4, 0))
+
+        ttk.Separator(self._body_frame, orient="vertical").pack(
+            side="right", fill="y", pady=4)
 
         # Notebook tabs for tuning panels
-        self._notebook = ttk.Notebook(self)
-        self._notebook.pack(fill="both", expand=True, padx=8, pady=4)
+        self._notebook = ttk.Notebook(self._body_frame)
+        self._notebook.pack(side="left", fill="both", expand=True)
 
         # ── Tab 1: Injection Map ──────────────────────────────────────────────
         map_tab = ttk.Frame(self._notebook)
@@ -222,7 +228,7 @@ class MainWindow(tk.Tk):
         self._sync_write_btn.pack(side="right", padx=4, pady=2)
         self._sync_load_btn.pack(side="right", padx=4, pady=2)
         self._sync_dismiss_btn.pack(side="right", padx=4, pady=2)
-        self._sync_bar.pack(fill="x", padx=8, pady=(0, 2), before=self._sensor_panel)
+        self._sync_bar.pack(fill="x", padx=8, pady=(0, 2), before=self._body_frame)
 
     def _dismiss_sync_warning(self) -> None:
         self._sync_bar.pack_forget()

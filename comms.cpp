@@ -262,7 +262,7 @@ void printSensorDebug()
 
 void sendSensorData()
 {
-    uint8_t buf[13];
+    uint8_t buf[16];
     // rpm: uint16
     buf[0] = rpm >> 8;
     buf[1] = rpm & 0xFF;
@@ -287,6 +287,19 @@ void sendSensorData()
     uint16_t bat_u = (uint16_t)(bat_v * 100.0f);
     buf[11] = bat_u >> 8;
     buf[12] = bat_u & 0xFF;
+    // pump duty: raw PWM (0–255)
+    buf[13] = pump_pwm;
+    // injector duty: per-mille (0–1000)
+    uint16_t inj_duty = 0;
+    if (rpm > 0 && last_pulse_width_us > 0) {
+        uint32_t period_us = (rpm >= RPM_SYNC_THRESHOLD)
+                             ? 16667UL
+                             : 60000000UL / rpm;
+        inj_duty = (uint16_t)((uint32_t)last_pulse_width_us * 1000UL / period_us);
+        if (inj_duty > 1000) inj_duty = 1000;
+    }
+    buf[14] = inj_duty >> 8;
+    buf[15] = inj_duty & 0xFF;
 
     sendPacket(CMD_READ_SENSORS, buf, sizeof(buf));
 }
