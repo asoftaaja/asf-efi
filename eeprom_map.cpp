@@ -118,6 +118,14 @@ void loadFromEEPROM()
             tps_axis[i] = ((uint16_t)EEPROM.read(EEPROM_ADDR_TPS_AXIS + i * 2) << 8)
                         |  (uint16_t)EEPROM.read(EEPROM_ADDR_TPS_AXIS + i * 2 + 1);
     }
+
+    // Pump mode — separate magic so upgrading firmware doesn't reset other settings
+    if (EEPROM.read(EEPROM_ADDR_PUMP_MODE_MAGIC) != EEPROM_PUMP_MODE_MAGIC_VALUE) {
+        EEPROM.write(EEPROM_ADDR_PUMP_MODE, 0);
+        EEPROM.write(EEPROM_ADDR_PUMP_MODE_MAGIC, EEPROM_PUMP_MODE_MAGIC_VALUE);
+    } else {
+        pump_mode_always_on = (EEPROM.read(EEPROM_ADDR_PUMP_MODE) != 0);
+    }
 }
 
 void saveInjectionMap()
@@ -159,6 +167,11 @@ void saveETCorrection()
         EEPROM.update(EEPROM_ADDR_ET_CORR + i * 2,     et_correction[i] >> 8);
         EEPROM.update(EEPROM_ADDR_ET_CORR + i * 2 + 1, et_correction[i] & 0xFF);
     }
+}
+
+void savePumpMode()
+{
+    EEPROM.update(EEPROM_ADDR_PUMP_MODE, pump_mode_always_on ? 1 : 0);
 }
 
 void saveAxisBreakpoints()

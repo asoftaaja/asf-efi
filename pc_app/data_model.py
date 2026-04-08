@@ -24,6 +24,7 @@ class ECUState:
         self.inj_map = [[0] * TPS_BINS for _ in range(RPM_BINS)]  # type: List[List[int]]
         self.pid = PIDParams()
         self.pressure = PressureConfig()
+        self.pump_mode_always_on: bool = False
         self.iat_corr = [1.0] * IAT_BINS   # type: List[float]
         self.et_corr  = [1.0] * ET_BINS    # type: List[float]
         self.rpm_axis = list(RPM_BREAKPOINTS)  # type: List[int]

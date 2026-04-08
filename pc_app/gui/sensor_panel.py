@@ -12,7 +12,8 @@ class SensorPanel(ttk.LabelFrame):
     def __init__(self, parent, ecu_state: ECUState):
         super().__init__(parent, text="Live Sensors", padding=6)
         self._state = ecu_state
-        self._map_editor = None     # set by MainWindow after construction
+        self._map_editor = None   # set by MainWindow after construction
+        self._pump_panel = None   # set by MainWindow after construction
 
         FONT = ("Courier", 30, "bold")
 
@@ -43,6 +44,9 @@ class SensorPanel(ttk.LabelFrame):
     def set_map_editor(self, editor) -> None:
         self._map_editor = editor
 
+    def set_pump_panel(self, panel) -> None:
+        self._pump_panel = panel
+
     def _schedule(self) -> None:
         self.after(REFRESH_MS, self._refresh)
 
@@ -62,4 +66,6 @@ class SensorPanel(ttk.LabelFrame):
 
                 if self._map_editor:
                     self._map_editor.update_cursor(data.rpm, data.tps)
+                if self._pump_panel:
+                    self._pump_panel.sync_state(data.pump_active)
         self._schedule()

@@ -133,6 +133,13 @@ static void dispatchCommand(const uint8_t *buf, uint8_t len)
         sendACK();
         break;
 
+    case CMD_PUMP_MODE:
+        if (plen != 1) { sendNACK(); return; }
+        pump_mode_always_on = (payload[0] != 0);
+        savePumpMode();
+        sendACK();
+        break;
+
     case CMD_WRITE_IAT_CORR:
         if (plen != IAT_BINS * 2) { sendNACK(); return; }
         for (uint8_t i = 0; i < IAT_BINS; i++)

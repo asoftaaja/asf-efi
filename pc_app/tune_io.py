@@ -29,6 +29,7 @@ def save_tunefile(path: "Path | str", state) -> None:
         "et_corr": state.et_corr,
         "rpm_axis": state.rpm_axis,
         "tps_axis": state.tps_axis,
+        "pump_mode_always_on": state.pump_mode_always_on,
     }
     path.write_text(json.dumps(data, indent=2))
     _set_last(path)
@@ -50,6 +51,7 @@ def load_tunefile(path: "Path | str", state) -> None:
     state.et_corr = [float(v) for v in data["et_corr"]]
     state.rpm_axis = [int(v) for v in data.get("rpm_axis", RPM_BREAKPOINTS)]
     state.tps_axis = [float(v) for v in data.get("tps_axis", TPS_BREAKPOINTS)]
+    state.pump_mode_always_on = bool(data.get("pump_mode_always_on", False))
     _set_last(path)
 
 

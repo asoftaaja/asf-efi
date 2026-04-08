@@ -19,6 +19,7 @@ CMD_WRITE_PID      = 0x03
 CMD_WRITE_PRESSURE = 0x04
 CMD_PUMP_PRIME     = 0x05
 CMD_PUMP_SET       = 0x0D  # payload: 1 byte (1=on, 0=off)
+CMD_PUMP_MODE      = 0x0E  # payload: 1 byte (0=PID, 1=always_on)
 CMD_ACK            = 0x06
 CMD_NACK           = 0x07
 CMD_WRITE_IAT_CORR = 0x08

@@ -17,8 +17,10 @@
 //  183        24   RPM axis breakpoints: RPM_BINS × uint16_t (big-endian)
 //  207        10   TPS axis breakpoints: TPS_BINS × uint16_t (0–1000 per-mille)
 //  217         1   Axis magic byte — 0xA8 when axis section has been initialised
+//  218         1   Pump mode: 0=PID (default), 1=always-on
+//  219         1   Pump mode magic byte — 0xA9 when pump mode section has been initialised
 //  -------  ----
-//  218 bytes total
+//  220 bytes total
 
 #define EEPROM_ADDR_INJ_MAP        0
 #define EEPROM_ADDR_PID          120
@@ -29,8 +31,11 @@
 #define EEPROM_MAGIC_VALUE      0xA7  // was 0xA5; changed to force re-init on upgrade
 #define EEPROM_ADDR_RPM_AXIS     183  // was 223
 #define EEPROM_ADDR_TPS_AXIS     207  // 10 bytes (was 20 bytes float)
-#define EEPROM_ADDR_AXIS_MAGIC   217  // was 267
-#define EEPROM_AXIS_MAGIC_VALUE 0xA8  // was 0xA6; changed to force re-init on upgrade
+#define EEPROM_ADDR_AXIS_MAGIC        217  // was 267
+#define EEPROM_AXIS_MAGIC_VALUE      0xA8  // was 0xA6; changed to force re-init on upgrade
+#define EEPROM_ADDR_PUMP_MODE         218  // 1 byte: 0=PID, 1=always_on
+#define EEPROM_ADDR_PUMP_MODE_MAGIC   219  // 1 byte: magic when pump mode section init'd
+#define EEPROM_PUMP_MODE_MAGIC_VALUE 0xA9
 
 void loadFromEEPROM();       // load all sections; writes defaults if uninitialised
 void saveInjectionMap();
@@ -39,3 +44,4 @@ void savePressureTable();
 void saveIATCorrection();
 void saveETCorrection();
 void saveAxisBreakpoints();
+void savePumpMode();

@@ -16,6 +16,7 @@ float    bat_v    = 0.0f;
 volatile uint16_t rpm         = 0;
 volatile bool     pump_active = false;
 bool              pump_manual = false;
+bool              pump_mode_always_on = false;
 
 uint16_t inj_map[RPM_BINS][TPS_BINS];
 uint16_t iat_correction[IAT_BINS];
@@ -127,7 +128,11 @@ void loop()
     if (isPriming()) {
         // primePump() already set full power; isPriming() handles the timeout
     } else if (pump_active) {
-        updatePump(fps_bar, rpm);
+        if (pump_mode_always_on) {
+            analogWrite(PIN_PUMP, 255);
+        } else {
+            updatePump(fps_bar, rpm);
+        }
     }
 
     // 5. LED indicators

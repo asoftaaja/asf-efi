@@ -74,3 +74,12 @@ class PumpPanel(ttk.LabelFrame):
         else:
             self._status_var.set(f"Failed: {err}")
         self._toggle_btn.configure(state="normal")
+
+    def sync_state(self, pump_active: bool) -> None:
+        """Update button visual to reflect actual ECU pump state (no command sent)."""
+        if pump_active != self._pump_on:
+            self._pump_on = pump_active
+            self._toggle_btn.configure(
+                text="Pump Off (test)" if pump_active else "Pump On (test)"
+            )
+            self._status_var.set("Pump ON" if pump_active else "")

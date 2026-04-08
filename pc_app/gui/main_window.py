@@ -114,6 +114,9 @@ class MainWindow(tk.Tk):
         self._pump_panel = PumpPanel(tune_inner, self._get_worker)
         self._pump_panel.grid(row=0, column=2, padx=8, pady=4, sticky="n")
 
+        # Wire sensor panel → pump panel for button state sync
+        self._sensor_panel.set_pump_panel(self._pump_panel)
+
         # ── Tab 3: Temperature Corrections ───────────────────────────────────
         corr_tab = ttk.Frame(self._notebook)
         self._notebook.add(corr_tab, text="  Corrections  ")

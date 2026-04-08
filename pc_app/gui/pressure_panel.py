@@ -4,7 +4,7 @@ import tkinter as tk
 from tkinter import ttk
 from typing import Callable
 
-from protocol import PressureConfig, encode_pressure, CMD_WRITE_PRESSURE
+from protocol import PressureConfig, encode_pressure, CMD_WRITE_PRESSURE, CMD_PUMP_MODE
 from data_model import ECUState
 
 
@@ -27,11 +27,35 @@ class PressurePanel(ttk.LabelFrame):
             setattr(self, attr, var)
             ttk.Entry(self, textvariable=var, width=10).grid(row=row, column=1, padx=4)
 
-        self._send_btn = ttk.Button(self, text="Send Pressure", command=self._send)
-        self._send_btn.grid(row=3, column=0, columnspan=2, pady=(6, 0))
+        # 0 = PID / active control, 1 = always on
+        self._mode_var = tk.IntVar(value=1 if ecu_state.pump_mode_always_on else 0)
+        ttk.Radiobutton(
+            self, text="Active pressure control",
+            variable=self._mode_var, value=0,
+            command=self._on_mode_change,
+        ).grid(row=3, column=0, columnspan=2, pady=(6, 0), sticky="w")
+        ttk.Radiobutton(
+            self, text="Pump on when running",
+            variable=self._mode_var, value=1,
+            command=self._on_mode_change,
+        ).grid(row=4, column=0, columnspan=2, sticky="w")
+
+        self._send_btn = ttk.Button(self, text="Update", command=self._send)
+        self._send_btn.grid(row=5, column=0, columnspan=2, pady=(6, 0))
 
         self._status_var = tk.StringVar()
-        ttk.Label(self, textvariable=self._status_var).grid(row=4, column=0, columnspan=2)
+        ttk.Label(self, textvariable=self._status_var).grid(row=6, column=0, columnspan=2)
+
+    def _on_mode_change(self) -> None:
+        worker = self._get_worker()
+        if worker is None:
+            self._status_var.set("Not connected")
+            return
+        always_on = (self._mode_var.get() == 1)
+        self._state.pump_mode_always_on = always_on
+        payload = bytes([1 if always_on else 0])
+        worker.send_command(CMD_PUMP_MODE, payload)
+        self._status_var.set("Mode: Pump on when running" if always_on else "Mode: PID")
 
     def _send(self) -> None:
         worker = self._get_worker()
@@ -66,6 +90,7 @@ class PressurePanel(ttk.LabelFrame):
         self._low_var.set(str(self._state.pressure.low_bar))
         self._high_var.set(str(self._state.pressure.high_bar))
         self._thresh_var.set(str(self._state.pressure.threshold_rpm))
+        self._mode_var.set(1 if self._state.pump_mode_always_on else 0)
 
     def flush_to_state(self) -> None:
         try:

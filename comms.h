@@ -17,6 +17,7 @@
 #define CMD_WRITE_PRESSURE  0x04  // PC→AVR: 10 bytes (low_bar, high_bar as float32 + threshold as uint16)
 #define CMD_PUMP_PRIME      0x05  // PC→AVR: no payload
 #define CMD_PUMP_SET        0x0D  // PC→AVR: 1-byte payload (1=on, 0=off) — manual test mode
+#define CMD_PUMP_MODE       0x0E  // PC→AVR: 1-byte payload (0=PID, 1=always_on)
 #define CMD_WRITE_IAT_CORR  0x08  // PC→AVR: 20 bytes (10 × uint16 Q8.8, 256 = 1.0)
 #define CMD_WRITE_ET_CORR   0x09  // PC→AVR: 20 bytes (10 × uint16 Q8.8, 256 = 1.0)
 #define CMD_READ_MAP        0x0A  // PC→AVR: no payload; AVR→PC: 120-byte injection map
