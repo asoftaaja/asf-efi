@@ -87,6 +87,7 @@ A PID controller runs each loop iteration to maintain target fuel pressure:
 - Applied as 0–255 PWM to the pump pin (D3)
 - Integral is clamped to ±20 to prevent wind-up
 - Target pressure switches between `pressure_low_bar` and `pressure_high_bar` at a configurable RPM threshold
+- **Pump mode** — selectable from the PC app: **PID mode** (default, actively regulates pressure) or **always-on mode** (full PWM, no pressure feedback)
 
 ### LED Indicators
 
@@ -105,15 +106,19 @@ Address  Size   Content
       0   120   Injection map (12×5 × uint16, big-endian)
     120    12   PID coefficients (kp, ki, kd as float32)
     132    10   Pressure config (low_bar, high_bar float32 + threshold uint16)
-    142    20   IAT correction (10 × uint16 Q8.8)
-    162    20   ET correction  (10 × uint16 Q8.8)
-    182     1   Magic byte 0xA7
-    183    24   RPM axis (12 × uint16)
-    207    10   TPS axis (5 × uint16 per-mille)
-    217     1   Axis magic byte 0xA8
+    142    10   IAT correction (5 × uint16 Q8.8)
+    152    10   ET correction  (5 × uint16 Q8.8)
+    162     1   Magic byte 0xAB
+    163    24   RPM axis (12 × uint16)
+    187    10   TPS axis (5 × uint16 per-mille)
+    197     1   Axis magic byte 0xA8
+    198     1   Pump mode (0 = PID, 1 = always-on)
+    199     1   Pump mode magic 0xA9
 ```
 
-Total: 218 bytes of 1024 available.
+Total: 200 bytes of 1024 available.
+
+**Note:** The magic byte changed from 0xA7 to 0xAB when correction tables were reduced from 10 to 5 bins. Firmware flashed after this change will re-initialise EEPROM with safe defaults on first boot; re-upload your tune from the PC app afterwards.
 
 ---
 
@@ -147,8 +152,12 @@ Packets are framed as:
 | 0x0A | `READ_MAP` | PC → ECU | none; ECU replies with 120-byte map |
 | 0x0B | `WRITE_AXIS` | PC → ECU | 34 bytes (12 × uint16 RPM + 5 × uint16 TPS per-mille) |
 | 0x0C | `READ_AXIS` | PC → ECU | none; ECU replies with 34-byte axis |
+| 0x0D | `PUMP_SET` | PC → ECU | 1 byte (1 = on, 0 = off) — manual test override |
+| 0x0E | `PUMP_MODE` | PC → ECU | 1 byte (0 = PID, 1 = always-on) |
+| 0x0F | `READ_PUMP_CONFIG` | PC → ECU | none; ECU replies with 23-byte config (kp/ki/kd float32 + pressure + threshold + mode) |
+| 0x10 | `READ_CORRECTIONS` | PC → ECU | none; ECU replies with 20-byte correction tables (5×uint16 IAT + 5×uint16 ET) |
 
-### Sensor Packet Format (12 bytes)
+### Sensor Packet Format (16 bytes)
 
 | Bytes | Field | Encoding |
 |---|---|---|
@@ -158,7 +167,9 @@ Packets are framed as:
 | 6–7 | IAT | int16, °C × 10 |
 | 8–9 | ET | int16, °C × 10 |
 | 10 | Pump active | 0 or 1 |
-| 11 | Reserved | — |
+| 11–12 | Battery voltage | uint16, V × 100 (e.g. 1234 = 12.34 V) |
+| 13 | Pump duty | uint8, raw PWM (0–255) |
+| 14–15 | Injector duty | uint16, per-mille (0–1000) |
 
 ---
 
@@ -181,12 +192,12 @@ python pc_app/main.py
 | `tune_io.py` | JSON tune file load/save |
 | `gui/main_window.py` | Root Tk window, wires all panels together |
 | `gui/connection_panel.py` | Port selector, connect/disconnect |
-| `gui/sensor_panel.py` | Live RPM, TPS, FPS, IAT, ET readouts |
+| `gui/sensor_panel.py` | Live RPM, TPS, FPS, IAT, ET, pump duty, injector duty, battery voltage readouts |
 | `gui/map_editor.py` | 12×5 injection map table + axis editors |
 | `gui/pid_panel.py` | PID coefficient editor |
 | `gui/pressure_panel.py` | Pressure config editor |
 | `gui/correction_panel.py` | IAT and ET correction table editors |
-| `gui/pump_panel.py` | Pump prime button |
+| `gui/pump_panel.py` | Pump prime button and manual on/off toggle |
 | `gui/tune_file_panel.py` | Load/save tune files |
 
 ### Data Flow
@@ -197,7 +208,7 @@ The `SerialWorker` thread sends `READ_SENSORS` every 200 ms. The ECU responds wi
 **PC → ECU (on demand):**
 When the user clicks Send on any panel, the GUI calls `worker.send_command(cmd, payload)`, which returns a `concurrent.futures.Future`. The worker serialises the packet, transmits it, and waits up to 1 second for ACK/NACK. The result is shown in the panel's status label.
 
-On connect, the worker automatically reads the current map and axis from the ECU to populate the GUI.
+On connect, the worker automatically reads the current map, axis, pump config (PID coefficients, pressure settings, pump mode), and correction tables from the ECU to populate all panels.
 
 ### Injection Map Editor
 
@@ -210,12 +221,12 @@ The map editor displays a 12×5 grid of pulse width values (µs). Rows are RPM b
 
 ### Temperature Correction Tables
 
-IAT and ET corrections are multiplier coefficients applied to the base pulse width from the map. The temperature breakpoints are fixed in firmware:
+IAT and ET corrections are multiplier coefficients applied to the base pulse width from the map. Each table has 5 temperature bins with fixed breakpoints:
 
-- **IAT breakpoints**: −20, −10, 0, 10, 20, 30, 40, 50, 60, 70 °C
-- **ET breakpoints**: 0, 10, 20, 30, 40, 50, 60, 70, 80, 100 °C
+- **IAT breakpoints**: −20, 0, 20, 40, 70 °C
+- **ET breakpoints**: 0, 25, 50, 80, 100 °C
 
-A value of 1.0 means no correction. Values greater than 1.0 enrich; values less than 1.0 lean out. Corrections are transmitted as Q8.8 fixed-point integers (1.0 = 256).
+A value of 1.0 means no correction. Values greater than 1.0 enrich; values less than 1.0 lean out. Corrections are transmitted as Q8.8 fixed-point integers (1.0 = 256). `WRITE_IAT_CORR`/`WRITE_ET_CORR` carry 10 bytes each (5 × uint16); `READ_CORRECTIONS` returns all 20 bytes in one response.
 
 ### Tune Files
 
