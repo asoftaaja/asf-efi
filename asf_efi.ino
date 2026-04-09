@@ -19,8 +19,8 @@ bool              pump_manual = false;
 bool              pump_mode_always_on = false;
 
 uint16_t inj_map[RPM_BINS][TPS_BINS];
-uint16_t iat_correction[IAT_BINS];
-uint16_t et_correction[ET_BINS];
+uint16_t iat_correction[IAT_CORR_BINS];
+uint16_t et_correction[ET_CORR_BINS];
 
 uint16_t pressure_threshold_rpm;
 float    pressure_low_bar;

@@ -141,16 +141,16 @@ static void dispatchCommand(const uint8_t *buf, uint8_t len)
         break;
 
     case CMD_WRITE_IAT_CORR:
-        if (plen != IAT_BINS * 2) { sendNACK(); return; }
-        for (uint8_t i = 0; i < IAT_BINS; i++)
+        if (plen != IAT_CORR_BINS * 2) { sendNACK(); return; }
+        for (uint8_t i = 0; i < IAT_CORR_BINS; i++)
             iat_correction[i] = ((uint16_t)payload[i * 2] << 8) | payload[i * 2 + 1];
         saveIATCorrection();
         sendACK();
         break;
 
     case CMD_WRITE_ET_CORR:
-        if (plen != ET_BINS * 2) { sendNACK(); return; }
-        for (uint8_t i = 0; i < ET_BINS; i++)
+        if (plen != ET_CORR_BINS * 2) { sendNACK(); return; }
+        for (uint8_t i = 0; i < ET_CORR_BINS; i++)
             et_correction[i] = ((uint16_t)payload[i * 2] << 8) | payload[i * 2 + 1];
         saveETCorrection();
         sendACK();
@@ -194,6 +194,35 @@ static void dispatchCommand(const uint8_t *buf, uint8_t len)
             buf[off + 1] = tps_axis[i] & 0xFF;
         }
         sendPacket(CMD_READ_AXIS, buf, sizeof(buf));
+        break;
+    }
+
+    case CMD_READ_CORRECTIONS: {
+        uint8_t buf[IAT_CORR_BINS * 2 + ET_CORR_BINS * 2];
+        for (uint8_t i = 0; i < IAT_CORR_BINS; i++) {
+            buf[i * 2]     = iat_correction[i] >> 8;
+            buf[i * 2 + 1] = iat_correction[i] & 0xFF;
+        }
+        for (uint8_t i = 0; i < ET_CORR_BINS; i++) {
+            uint8_t off = IAT_CORR_BINS * 2 + i * 2;
+            buf[off]     = et_correction[i] >> 8;
+            buf[off + 1] = et_correction[i] & 0xFF;
+        }
+        sendPacket(CMD_READ_CORRECTIONS, buf, sizeof(buf));
+        break;
+    }
+
+    case CMD_READ_PUMP_CONFIG: {
+        uint8_t buf[23];
+        packFloat(buf,      pid_kp);
+        packFloat(buf + 4,  pid_ki);
+        packFloat(buf + 8,  pid_kd);
+        packFloat(buf + 12, pressure_low_bar);
+        packFloat(buf + 16, pressure_high_bar);
+        buf[20] = pressure_threshold_rpm >> 8;
+        buf[21] = pressure_threshold_rpm & 0xFF;
+        buf[22] = pump_mode_always_on ? 1 : 0;
+        sendPacket(CMD_READ_PUMP_CONFIG, buf, sizeof(buf));
         break;
     }
 

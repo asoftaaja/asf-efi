@@ -15,9 +15,10 @@ import serial
 import serial.tools.list_ports
 
 from protocol import (
-    PKT_START, CMD_READ_SENSORS, CMD_READ_MAP, CMD_READ_AXIS, CMD_ACK, CMD_NACK,
+    PKT_START, CMD_READ_SENSORS, CMD_READ_MAP, CMD_READ_AXIS,
+    CMD_READ_PUMP_CONFIG, CMD_READ_CORRECTIONS, CMD_ACK, CMD_NACK,
     build_packet, parse_packet, decode_sensor_data, decode_map, decode_axis,
-    SERIAL_BAUD,
+    decode_pump_config, decode_corrections, SERIAL_BAUD,
 )
 from data_model import ECUState
 
@@ -95,6 +96,29 @@ class SerialWorker(threading.Thread):
                 self._state.buffer_device_axis(rpm_pts, tps_pts)
         except (serial.SerialException, ValueError):
             pass  # non-fatal; axis editor will show compile-time defaults
+
+        try:
+            self._serial.write(build_packet(CMD_READ_PUMP_CONFIG))
+            pkt = self._read_packet(WRITE_TIMEOUT)
+            if pkt and pkt[0] == CMD_READ_PUMP_CONFIG:
+                pid, pressure, pump_mode = decode_pump_config(pkt[1])
+                self._state.pid = pid
+                self._state.pressure = pressure
+                self._state.pump_mode_always_on = pump_mode
+        except (serial.SerialException, ValueError):
+            pass  # non-fatal; panels will show default values
+
+        try:
+            self._serial.write(build_packet(CMD_READ_CORRECTIONS))
+            pkt = self._read_packet(WRITE_TIMEOUT)
+            if pkt and pkt[0] == CMD_READ_CORRECTIONS:
+                iat_corr, et_corr = decode_corrections(pkt[1])
+                self._state.iat_corr = iat_corr
+                self._state.et_corr = et_corr
+        except (serial.SerialException, ValueError):
+            pass  # non-fatal; panels will show default values
+
+        self._state.config_fresh.set()
 
         miss_count = 0
         last_poll = 0.0

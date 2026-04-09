@@ -9,9 +9,13 @@
 #define PIN_ET   A3
 #define PIN_BAT  A7
 
-// Lookup table sizes
+// NTC thermistor lookup table sizes (do not change without updating iat_table/et_table in sensors.cpp)
 #define IAT_BINS 10
 #define ET_BINS  10
+
+// Injection correction table sizes (independent of thermistor bins)
+#define IAT_CORR_BINS 5
+#define ET_CORR_BINS  5
 
 // Read raw ADC and convert to engineering units
 uint16_t readTPS();    // returns 0–1000 per-mille (0 = 0%, 1000 = 100%)

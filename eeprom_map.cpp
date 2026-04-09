@@ -45,11 +45,11 @@ static void writeDefaults()
     EEPROM.write(EEPROM_ADDR_PRESSURE + 9, 0xB8);      // threshold rpm lo: 3000 & 0xFF
 
     // IAT and ET correction: all 256 (= 1.0 in Q8.8, no correction)
-    for (uint8_t i = 0; i < IAT_BINS; i++) {
+    for (uint8_t i = 0; i < IAT_CORR_BINS; i++) {
         EEPROM.write(EEPROM_ADDR_IAT_CORR + i * 2,     1);  // 256 >> 8
         EEPROM.write(EEPROM_ADDR_IAT_CORR + i * 2 + 1, 0);  // 256 & 0xFF
     }
-    for (uint8_t i = 0; i < ET_BINS; i++) {
+    for (uint8_t i = 0; i < ET_CORR_BINS; i++) {
         EEPROM.write(EEPROM_ADDR_ET_CORR + i * 2,     1);
         EEPROM.write(EEPROM_ADDR_ET_CORR + i * 2 + 1, 0);
     }
@@ -99,10 +99,10 @@ void loadFromEEPROM()
                            |  (uint16_t)EEPROM.read(EEPROM_ADDR_PRESSURE + 9);
 
     // Correction tables (uint16_t Q8.8)
-    for (uint8_t i = 0; i < IAT_BINS; i++)
+    for (uint8_t i = 0; i < IAT_CORR_BINS; i++)
         iat_correction[i] = ((uint16_t)EEPROM.read(EEPROM_ADDR_IAT_CORR + i * 2) << 8)
                           |  (uint16_t)EEPROM.read(EEPROM_ADDR_IAT_CORR + i * 2 + 1);
-    for (uint8_t i = 0; i < ET_BINS; i++)
+    for (uint8_t i = 0; i < ET_CORR_BINS; i++)
         et_correction[i]  = ((uint16_t)EEPROM.read(EEPROM_ADDR_ET_CORR  + i * 2) << 8)
                           |  (uint16_t)EEPROM.read(EEPROM_ADDR_ET_CORR  + i * 2 + 1);
 
@@ -155,7 +155,7 @@ void savePressureTable()
 
 void saveIATCorrection()
 {
-    for (uint8_t i = 0; i < IAT_BINS; i++) {
+    for (uint8_t i = 0; i < IAT_CORR_BINS; i++) {
         EEPROM.update(EEPROM_ADDR_IAT_CORR + i * 2,     iat_correction[i] >> 8);
         EEPROM.update(EEPROM_ADDR_IAT_CORR + i * 2 + 1, iat_correction[i] & 0xFF);
     }
@@ -163,7 +163,7 @@ void saveIATCorrection()
 
 void saveETCorrection()
 {
-    for (uint8_t i = 0; i < ET_BINS; i++) {
+    for (uint8_t i = 0; i < ET_CORR_BINS; i++) {
         EEPROM.update(EEPROM_ADDR_ET_CORR + i * 2,     et_correction[i] >> 8);
         EEPROM.update(EEPROM_ADDR_ET_CORR + i * 2 + 1, et_correction[i] & 0xFF);
     }

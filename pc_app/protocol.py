@@ -24,14 +24,19 @@ CMD_ACK            = 0x06
 CMD_NACK           = 0x07
 CMD_WRITE_IAT_CORR = 0x08
 CMD_WRITE_ET_CORR  = 0x09
-CMD_READ_MAP       = 0x0A
-CMD_WRITE_AXIS     = 0x0B
-CMD_READ_AXIS      = 0x0C
+CMD_READ_MAP         = 0x0A
+CMD_WRITE_AXIS       = 0x0B
+CMD_READ_AXIS        = 0x0C
+CMD_READ_PUMP_CONFIG  = 0x0F
+CMD_READ_CORRECTIONS  = 0x10
 
 RPM_BINS = 12
 TPS_BINS = 5
-IAT_BINS = 10
-ET_BINS  = 10
+IAT_BINS = 5
+ET_BINS  = 5
+
+IAT_CORR_TEMPS = [-20,  0, 20, 40,  70]   # °C breakpoints matching firmware IAT_CORR_TEMPS
+ET_CORR_TEMPS  = [  0, 25, 50, 80, 100]   # °C breakpoints matching firmware ET_CORR_TEMPS
 
 RPM_BREAKPOINTS = [500, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 10000, 13000, 16000]
 TPS_BREAKPOINTS = [0, 250, 500, 750, 1000]   # per-mille integers (0–1000)
@@ -167,6 +172,29 @@ def decode_axis(payload: bytes) -> Tuple[List[int], List[float]]:
     tps_raw = list(struct.unpack_from('>' + 'H' * TPS_BINS, payload, RPM_BINS * 2))
     tps_pts = [v / 1000.0 for v in tps_raw]
     return rpm_pts, tps_pts
+
+
+def decode_corrections(payload: bytes):
+    """Unpack 20-byte corrections payload. Returns (iat_corr, et_corr) as lists of floats."""
+    expected = IAT_BINS * 2 + ET_BINS * 2
+    if len(payload) < expected:
+        raise ValueError(f"Corrections payload too short: {len(payload)}")
+    iat_corr = [struct.unpack_from('>H', payload, i * 2)[0] / 256.0 for i in range(IAT_BINS)]
+    et_corr  = [struct.unpack_from('>H', payload, IAT_BINS * 2 + i * 2)[0] / 256.0 for i in range(ET_BINS)]
+    return iat_corr, et_corr
+
+
+def decode_pump_config(payload: bytes):
+    """Unpack 23-byte pump config payload. Returns (PIDParams, PressureConfig, pump_mode_always_on)."""
+    if len(payload) < 23:
+        raise ValueError(f"Pump config payload too short: {len(payload)}")
+    kp, ki, kd = struct.unpack_from('>fff', payload, 0)
+    low_bar, high_bar = struct.unpack_from('>ff', payload, 12)
+    threshold_rpm, = struct.unpack_from('>H', payload, 20)
+    pump_mode_always_on = payload[22] != 0
+    return (PIDParams(kp=kp, ki=ki, kd=kd),
+            PressureConfig(low_bar=low_bar, high_bar=high_bar, threshold_rpm=threshold_rpm),
+            pump_mode_always_on)
 
 
 def decode_sensor_data(payload: bytes) -> SensorData:

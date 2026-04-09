@@ -191,6 +191,7 @@ class MainWindow(tk.Tk):
         self._set_panels_enabled(True)
         self._state.map_fresh.clear()
         self._state.axis_fresh.clear()
+        self._state.config_fresh.clear()
         self._state.device_map_buf = None
         self._state.device_rpm_axis_buf = None
         self._state.device_tps_axis_buf = None
@@ -206,6 +207,10 @@ class MainWindow(tk.Tk):
                 "Device values differ from the loaded tune file. "
                 "Write all to device, or load from device."
             )
+        if self._state.config_fresh.is_set():
+            self._pid_panel.refresh_from_state()
+            self._pressure_panel.refresh_from_state()
+            self._corr_panel.refresh_from_state()
 
     def _on_disconnect(self) -> None:
         self._worker = None

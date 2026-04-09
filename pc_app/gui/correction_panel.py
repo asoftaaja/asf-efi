@@ -1,28 +1,28 @@
-"""IAT and ET correction multiplier tables (10 values each)."""
+"""IAT and ET correction multiplier tables (5 values each)."""
 
 import tkinter as tk
 from tkinter import ttk
 from typing import Callable, List, Optional
 
-from protocol import IAT_BINS, ET_BINS, encode_corrections, CMD_WRITE_IAT_CORR, CMD_WRITE_ET_CORR
+from protocol import IAT_BINS, ET_BINS, IAT_CORR_TEMPS, ET_CORR_TEMPS, encode_corrections, CMD_WRITE_IAT_CORR, CMD_WRITE_ET_CORR
 from data_model import ECUState
 
 
 class _CorrTable(ttk.LabelFrame):
-    """A single 10-row correction table with a Send button."""
+    """A single correction table with temperature labels and a Send button."""
 
-    def __init__(self, parent, title: str, values: List[float], cmd: int, get_worker: Callable):
+    def __init__(self, parent, title: str, values: List[float], temps: List[int], cmd: int, get_worker: Callable):
         super().__init__(parent, text=title, padding=6)
         self._cmd = cmd
         self._get_worker = get_worker
         self._n = len(values)
         self._vars: List[tk.StringVar] = []
 
-        ttk.Label(self, text="#",     width=3, anchor="center", font=("TkDefaultFont", 9, "bold")).grid(row=0, column=0)
+        ttk.Label(self, text="°C",    width=5, anchor="center", font=("TkDefaultFont", 9, "bold")).grid(row=0, column=0)
         ttk.Label(self, text="Mult.", width=8, anchor="center", font=("TkDefaultFont", 9, "bold")).grid(row=0, column=1)
 
-        for i, v in enumerate(values):
-            ttk.Label(self, text=str(i), width=3, anchor="e").grid(row=i + 1, column=0, padx=2, pady=1)
+        for i, (v, t) in enumerate(zip(values, temps)):
+            ttk.Label(self, text=str(t), width=5, anchor="e").grid(row=i + 1, column=0, padx=2, pady=1)
             var = tk.StringVar(value=f"{v:.4f}")
             self._vars.append(var)
             ttk.Entry(self, textvariable=var, width=8, justify="center").grid(row=i + 1, column=1, padx=2, pady=1)
@@ -75,18 +75,18 @@ class CorrectionPanel(ttk.LabelFrame):
         self._state = ecu_state
 
         self._iat_table = _CorrTable(
-            self, "IAT Correction", ecu_state.iat_corr, CMD_WRITE_IAT_CORR, get_worker
+            self, "IAT Correction", ecu_state.iat_corr, IAT_CORR_TEMPS, CMD_WRITE_IAT_CORR, get_worker
         )
         self._iat_table.grid(row=0, column=0, padx=8, pady=4, sticky="n")
 
         self._et_table = _CorrTable(
-            self, "ET Correction", ecu_state.et_corr, CMD_WRITE_ET_CORR, get_worker
+            self, "ET Correction", ecu_state.et_corr, ET_CORR_TEMPS, CMD_WRITE_ET_CORR, get_worker
         )
         self._et_table.grid(row=0, column=1, padx=8, pady=4, sticky="n")
 
         ttk.Label(
             self,
-            text="Indices 0–9 correspond to firmware temperature breakpoints.\nValues are multipliers applied to base pulse width (1.0 = no correction).",
+            text="Values are multipliers applied to base pulse width (1.0 = no correction).",
             font=("TkDefaultFont", 8),
             foreground="gray",
         ).grid(row=1, column=0, columnspan=2, pady=(4, 0))

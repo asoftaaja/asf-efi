@@ -11,8 +11,8 @@ uint16_t rpm_axis[RPM_BINS] = {  500, 1000, 2000, 3000, 4000,  5000,
 uint16_t tps_axis[TPS_BINS] = { 0, 250, 500, 750, 1000 };  // 0–1000 per-mille
 
 // Temperature breakpoints for the correction coefficient arrays (stored in EEPROM)
-static const int16_t IAT_CORR_TEMPS[IAT_BINS] = { -20, -10,  0, 10, 20, 30, 40, 50, 60,  70 };
-static const int16_t ET_CORR_TEMPS[ET_BINS]   = {   0,  10, 20, 30, 40, 50, 60, 70, 80, 100 };
+static const int16_t IAT_CORR_TEMPS[IAT_CORR_BINS] = { -20,  0, 20, 40,  70 };
+static const int16_t ET_CORR_TEMPS[ET_CORR_BINS]   = {   0, 25, 50, 80, 100 };
 
 // Maximum safe injection pulse (µs) — prevents injector from staying open too long
 #define MAX_PULSE_US 25000U
@@ -92,9 +92,9 @@ uint16_t calculatePulseWidth(uint16_t rpm_val, uint16_t tps_val,
     if (base_pw == 0) return 0;
 
     uint16_t iat_corr = interpolateCorrection(iat_degc_val,
-                                              IAT_CORR_TEMPS, iat_correction, IAT_BINS);
+                                              IAT_CORR_TEMPS, iat_correction, IAT_CORR_BINS);
     uint16_t et_corr  = interpolateCorrection(et_degc_val,
-                                              ET_CORR_TEMPS,  et_correction,  ET_BINS);
+                                              ET_CORR_TEMPS,  et_correction,  ET_CORR_BINS);
 
     // Apply Q8.8 corrections: multiply then shift right by 8
     uint32_t pw = (uint32_t)base_pw * iat_corr >> 8;

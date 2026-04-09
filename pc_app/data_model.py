@@ -19,6 +19,7 @@ class ECUState:
         self._sensors = None  # type: Optional[SensorData]
         self.sensor_fresh = threading.Event()   # set when new sensor data arrives
         self.map_fresh    = threading.Event()   # set when map is loaded from device
+        self.config_fresh = threading.Event()   # set when pump config loaded from device
 
         # ── Tunable parameters (GUI is source of truth, sent to ECU on demand) ─
         self.inj_map = [[0] * TPS_BINS for _ in range(RPM_BINS)]  # type: List[List[int]]
