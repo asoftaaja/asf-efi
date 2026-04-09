@@ -4,8 +4,7 @@
 uint8_t pump_pwm = 0;   // last PWM value written to pump output
 
 // PID state
-static float    pid_integral  = 0.0f;
-static float    pid_prev_err  = 0.0f;
+static int32_t  pid_integral  = 0;    // (1/8 bar) * ms
 static uint32_t pid_prev_ms   = 0;
 
 // Priming state
@@ -22,32 +21,35 @@ void initPump()
 
 void updatePump(uint8_t fps_eighth_bar, uint16_t rpm_val)
 {
-    float fps_bar_val = fps_eighth_bar / 8.0f;
-    float target = (rpm_val >= pressure_threshold_rpm)
-                   ? pressure_high_bar
-                   : pressure_low_bar;
+    float target_bar = (rpm_val >= pressure_threshold_rpm)
+                       ? pressure_high_bar
+                       : pressure_low_bar;
+    int16_t target = (int16_t)(target_bar * 8.0f + 0.5f);  // convert to 1/8 bar
 
-    uint32_t now = millis();
-    float dt = (float)(now - pid_prev_ms) / 1000.0f;
-    if (dt < 0.001f) dt = 0.001f;
+    int16_t kp = (int16_t)pid_kp;
+    int16_t ki = (int16_t)pid_ki;
+
+    uint32_t now   = millis();
+    uint16_t dt_ms = (uint16_t)(now - pid_prev_ms);
+    if (dt_ms < 1) dt_ms = 1;
     pid_prev_ms = now;
 
-    float error      = target - fps_bar_val;
-    pid_integral    += error * dt;
-    pid_integral     = constrain(pid_integral, -20.0f, 20.0f);  // anti-windup
-    float derivative = (error - pid_prev_err) / dt;
-    pid_prev_err     = error;
+    int16_t error  = target - (int16_t)fps_eighth_bar;          // 1/8 bar
+    pid_integral  += (int32_t)error * dt_ms;
+    pid_integral   = constrain(pid_integral, -160000L, 160000L); // anti-windup (≈±20 bar·s)
 
-    float output = pid_kp * error + pid_ki * pid_integral + pid_kd * derivative;
-    pump_pwm = (uint8_t)constrain(output, 0.0f, 255.0f);
+    // output = kp*(error/8) + ki*(integral/8000)
+    //        = (kp*error*1000 + ki*integral) / 8000
+    int32_t output_scaled = (int32_t)kp * error * 1000L
+                          + (int32_t)ki * pid_integral;
+    pump_pwm = (uint8_t)constrain(output_scaled / 8000L, 0L, 255L);
     analogWrite(PIN_PUMP, pump_pwm);
 }
 
 void disablePump()
 {
     priming = false;
-    pid_integral  = 0.0f;
-    pid_prev_err  = 0.0f;
+    pid_integral = 0;
     pump_pwm = 0;
     analogWrite(PIN_PUMP, 0);
 }
