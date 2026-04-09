@@ -202,7 +202,7 @@ def decode_sensor_data(payload: bytes) -> SensorData:
     if len(payload) < 13:
         raise ValueError(f"Sensor payload too short: {len(payload)}")
     rpm, tps_raw, fps_raw, iat_raw, et_raw, pump_active, bat_raw, pump_pwm, inj_duty_pm = \
-        struct.unpack('>HBBhhBBH', payload[:13])
+        struct.unpack('>HBBhhBBBH', payload[:13])
     return SensorData(
         rpm=rpm,
         tps=tps_raw / 100.0,
