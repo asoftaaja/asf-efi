@@ -21,8 +21,8 @@
 #define CMD_WRITE_IAT_CORR  0x08  // PC→AVR: 20 bytes (10 × uint16 Q8.8, 256 = 1.0)
 #define CMD_WRITE_ET_CORR   0x09  // PC→AVR: 20 bytes (10 × uint16 Q8.8, 256 = 1.0)
 #define CMD_READ_MAP        0x0A  // PC→AVR: no payload; AVR→PC: 120-byte injection map
-#define CMD_WRITE_AXIS      0x0B  // PC→AVR: 34 bytes (12 × uint16 RPM + 5 × uint16 TPS per-mille)
-#define CMD_READ_AXIS       0x0C  // PC→AVR: no payload; AVR→PC: same 34-byte layout
+#define CMD_WRITE_AXIS      0x0B  // PC→AVR: 29 bytes (12 × uint16 RPM + 5 × uint8 TPS percent)
+#define CMD_READ_AXIS       0x0C  // PC→AVR: no payload; AVR→PC: same 29-byte layout
 #define CMD_READ_PUMP_CONFIG  0x0F // PC→AVR: no payload; AVR→PC: 23 bytes — kp/ki/kd + low/high bar + threshold RPM + pump mode
 #define CMD_READ_CORRECTIONS  0x10 // PC→AVR: no payload; AVR→PC: 40 bytes — 10 × uint16 IAT Q8.8 + 10 × uint16 ET Q8.8
 #define CMD_ACK             0x06  // AVR→PC: acknowledged

@@ -7,11 +7,11 @@
 
 // ---- Global state (shared via asf_efi.h) ------------------------------------
 
-uint16_t tps      = 0;
-float    fps_bar  = 0.0f;
+uint8_t  tps      = 0;
+uint8_t  fps_bar  = 0;
 int16_t  iat_degc = 25;
 int16_t  et_degc  = 25;
-float    bat_v    = 0.0f;
+uint8_t  bat_v    = 0;
 
 volatile uint16_t rpm         = 0;
 volatile bool     pump_active = false;

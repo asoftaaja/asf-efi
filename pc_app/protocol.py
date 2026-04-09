@@ -39,7 +39,7 @@ IAT_CORR_TEMPS = [-20,  0, 20, 40,  70]   # °C breakpoints matching firmware IA
 ET_CORR_TEMPS  = [  0, 25, 50, 80, 100]   # °C breakpoints matching firmware ET_CORR_TEMPS
 
 RPM_BREAKPOINTS = [500, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 10000, 13000, 16000]
-TPS_BREAKPOINTS = [0, 250, 500, 750, 1000]   # per-mille integers (0–1000)
+TPS_BREAKPOINTS = [0, 25, 50, 75, 100]   # percent integers (0–100)
 
 # ── Data classes ─────────────────────────────────────────────────────────────
 
@@ -142,10 +142,10 @@ def encode_corrections(values: List[float]) -> bytes:
 
 
 def encode_axis(rpm_pts: List[int], tps_pts: List[float]) -> bytes:
-    """Pack 12 × uint16 RPM + 5 × uint16 TPS per-mille big-endian (34 bytes)."""
-    tps_raw = [round(v * 1000) for v in tps_pts]
+    """Pack 12 × uint16 RPM + 5 × uint8 TPS percent big-endian (29 bytes)."""
+    tps_raw = [round(v * 100) for v in tps_pts]
     return struct.pack('>' + 'H' * RPM_BINS, *rpm_pts) + \
-           struct.pack('>' + 'H' * TPS_BINS, *tps_raw)
+           struct.pack('>' + 'B' * TPS_BINS, *tps_raw)
 
 
 # ── Decode helpers ────────────────────────────────────────────────────────────
@@ -165,12 +165,12 @@ def decode_map(payload: bytes) -> List[List[int]]:
 
 
 def decode_axis(payload: bytes) -> Tuple[List[int], List[float]]:
-    """Unpack 34-byte axis payload to (rpm_pts, tps_pts). TPS values returned as 0.0–1.0."""
-    if len(payload) < RPM_BINS * 2 + TPS_BINS * 2:
+    """Unpack 29-byte axis payload to (rpm_pts, tps_pts). TPS values returned as 0.0–1.0."""
+    if len(payload) < RPM_BINS * 2 + TPS_BINS:
         raise ValueError(f"Axis payload too short: {len(payload)}")
     rpm_pts = list(struct.unpack_from('>' + 'H' * RPM_BINS, payload, 0))
-    tps_raw = list(struct.unpack_from('>' + 'H' * TPS_BINS, payload, RPM_BINS * 2))
-    tps_pts = [v / 1000.0 for v in tps_raw]
+    tps_raw = list(struct.unpack_from('>' + 'B' * TPS_BINS, payload, RPM_BINS * 2))
+    tps_pts = [v / 100.0 for v in tps_raw]
     return rpm_pts, tps_pts
 
 
@@ -198,19 +198,19 @@ def decode_pump_config(payload: bytes):
 
 
 def decode_sensor_data(payload: bytes) -> SensorData:
-    """Unpack 16-byte sensor response payload."""
-    if len(payload) < 16:
+    """Unpack 13-byte sensor response payload."""
+    if len(payload) < 13:
         raise ValueError(f"Sensor payload too short: {len(payload)}")
     rpm, tps_raw, fps_raw, iat_raw, et_raw, pump_active, bat_raw, pump_pwm, inj_duty_pm = \
-        struct.unpack('>HHHhhBHBH', payload[:16])
+        struct.unpack('>HBBhhBBH', payload[:13])
     return SensorData(
         rpm=rpm,
-        tps=tps_raw / 1000.0,
-        fps_bar=fps_raw / 100.0,
+        tps=tps_raw / 100.0,
+        fps_bar=fps_raw / 8.0,
         iat_degc=iat_raw / 10.0,
         et_degc=et_raw / 10.0,
         pump_active=bool(pump_active),
-        bat_v=bat_raw / 100.0,
+        bat_v=bat_raw / 16.0,
         pump_duty=pump_pwm,
         inj_duty=inj_duty_pm / 10.0,
     )
@@ -224,5 +224,5 @@ def nearest_rpm_bin(rpm: int, axis: Optional[List[int]] = None) -> int:
 
 
 def nearest_tps_bin(tps: float, axis: Optional[List[float]] = None) -> int:
-    pts = axis if axis is not None else [v / 1000.0 for v in TPS_BREAKPOINTS]
+    pts = axis if axis is not None else [v / 100.0 for v in TPS_BREAKPOINTS]
     return min(range(len(pts)), key=lambda i: abs(pts[i] - tps))

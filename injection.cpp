@@ -8,7 +8,7 @@ volatile uint16_t last_pulse_width_us = 0;
 // Mutable so they can be updated via the serial command CMD_WRITE_AXIS and saved to EEPROM.
 uint16_t rpm_axis[RPM_BINS] = {  500, 1000, 2000, 3000, 4000,  5000,
                                   6000, 7000, 8000, 10000, 13000, 16000 };
-uint16_t tps_axis[TPS_BINS] = { 0, 250, 500, 750, 1000 };  // 0–1000 per-mille
+uint8_t  tps_axis[TPS_BINS] = { 0, 25, 50, 75, 100 };  // 0–100 percent
 
 // Temperature breakpoints for the correction coefficient arrays (stored in EEPROM)
 static const int16_t IAT_CORR_TEMPS[IAT_CORR_BINS] = { -20,  0, 20, 40,  70 };
@@ -19,7 +19,7 @@ static const int16_t ET_CORR_TEMPS[ET_CORR_BINS]   = {   0, 25, 50, 80, 100 };
 
 // ---- Internal helpers -------------------------------------------------------
 
-static uint16_t interpolateMap(uint16_t rpm_val, uint16_t tps_val)
+static uint16_t interpolateMap(uint16_t rpm_val, uint8_t tps_val)
 {
     // Find surrounding RPM cell
     uint8_t ri = 0;
@@ -85,7 +85,7 @@ void initInjection()
     digitalWrite(PIN_LED_RED,  LOW);
 }
 
-uint16_t calculatePulseWidth(uint16_t rpm_val, uint16_t tps_val,
+uint16_t calculatePulseWidth(uint16_t rpm_val, uint8_t tps_val,
                              int16_t iat_degc_val, int16_t et_degc_val)
 {
     uint16_t base_pw = interpolateMap(rpm_val, tps_val);

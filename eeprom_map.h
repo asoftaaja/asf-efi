@@ -15,12 +15,12 @@
 //  152        10   ET correction:  ET_CORR_BINS  × uint16_t Q8.8
 //  162         1   Magic byte — 0xAB when EEPROM has been initialised
 //  163        24   RPM axis breakpoints: RPM_BINS × uint16_t (big-endian)
-//  187        10   TPS axis breakpoints: TPS_BINS × uint16_t (0–1000 per-mille)
-//  197         1   Axis magic byte — 0xA8 when axis section has been initialised
-//  198         1   Pump mode: 0=PID (default), 1=always-on
-//  199         1   Pump mode magic byte — 0xA9 when pump mode section has been initialised
+//  187         5   TPS axis breakpoints: TPS_BINS × uint8_t (0–100 percent)
+//  192         1   Axis magic byte — 0xAC when axis section has been initialised
+//  193         1   Pump mode: 0=PID (default), 1=always-on
+//  194         1   Pump mode magic byte — 0xA9 when pump mode section has been initialised
 //  -------  ----
-//  200 bytes total
+//  195 bytes total
 
 #define EEPROM_ADDR_INJ_MAP        0
 #define EEPROM_ADDR_PID          120
@@ -30,11 +30,11 @@
 #define EEPROM_ADDR_MAGIC        162
 #define EEPROM_MAGIC_VALUE      0xAB  // changed from 0xA7 to force re-init (correction bins reduced to 5)
 #define EEPROM_ADDR_RPM_AXIS     163
-#define EEPROM_ADDR_TPS_AXIS     187  // 10 bytes
-#define EEPROM_ADDR_AXIS_MAGIC        197
-#define EEPROM_AXIS_MAGIC_VALUE      0xA8
-#define EEPROM_ADDR_PUMP_MODE         198  // 1 byte: 0=PID, 1=always_on
-#define EEPROM_ADDR_PUMP_MODE_MAGIC   199  // 1 byte: magic when pump mode section init'd
+#define EEPROM_ADDR_TPS_AXIS     187  // 5 bytes
+#define EEPROM_ADDR_AXIS_MAGIC        192
+#define EEPROM_AXIS_MAGIC_VALUE      0xAC  // changed from 0xA8 to force re-init (TPS axis now uint8 percent)
+#define EEPROM_ADDR_PUMP_MODE         193  // 1 byte: 0=PID, 1=always_on
+#define EEPROM_ADDR_PUMP_MODE_MAGIC   194  // 1 byte: magic when pump mode section init'd
 #define EEPROM_PUMP_MODE_MAGIC_VALUE 0xA9
 
 void loadFromEEPROM();       // load all sections; writes defaults if uninitialised

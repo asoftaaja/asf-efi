@@ -63,10 +63,8 @@ static void writeAxisDefaults()
         EEPROM.write(EEPROM_ADDR_RPM_AXIS + i * 2,     rpm_axis[i] >> 8);
         EEPROM.write(EEPROM_ADDR_RPM_AXIS + i * 2 + 1, rpm_axis[i] & 0xFF);
     }
-    for (uint8_t i = 0; i < TPS_BINS; i++) {
-        EEPROM.write(EEPROM_ADDR_TPS_AXIS + i * 2,     tps_axis[i] >> 8);
-        EEPROM.write(EEPROM_ADDR_TPS_AXIS + i * 2 + 1, tps_axis[i] & 0xFF);
-    }
+    for (uint8_t i = 0; i < TPS_BINS; i++)
+        EEPROM.write(EEPROM_ADDR_TPS_AXIS + i, tps_axis[i]);
 
     EEPROM.write(EEPROM_ADDR_AXIS_MAGIC, EEPROM_AXIS_MAGIC_VALUE);
 }
@@ -115,8 +113,7 @@ void loadFromEEPROM()
             rpm_axis[i] = ((uint16_t)EEPROM.read(EEPROM_ADDR_RPM_AXIS + i * 2) << 8)
                         |  (uint16_t)EEPROM.read(EEPROM_ADDR_RPM_AXIS + i * 2 + 1);
         for (uint8_t i = 0; i < TPS_BINS; i++)
-            tps_axis[i] = ((uint16_t)EEPROM.read(EEPROM_ADDR_TPS_AXIS + i * 2) << 8)
-                        |  (uint16_t)EEPROM.read(EEPROM_ADDR_TPS_AXIS + i * 2 + 1);
+            tps_axis[i] = EEPROM.read(EEPROM_ADDR_TPS_AXIS + i);
     }
 
     // Pump mode — separate magic so upgrading firmware doesn't reset other settings
@@ -180,8 +177,6 @@ void saveAxisBreakpoints()
         EEPROM.update(EEPROM_ADDR_RPM_AXIS + i * 2,     rpm_axis[i] >> 8);
         EEPROM.update(EEPROM_ADDR_RPM_AXIS + i * 2 + 1, rpm_axis[i] & 0xFF);
     }
-    for (uint8_t i = 0; i < TPS_BINS; i++) {
-        EEPROM.update(EEPROM_ADDR_TPS_AXIS + i * 2,     tps_axis[i] >> 8);
-        EEPROM.update(EEPROM_ADDR_TPS_AXIS + i * 2 + 1, tps_axis[i] & 0xFF);
-    }
+    for (uint8_t i = 0; i < TPS_BINS; i++)
+        EEPROM.update(EEPROM_ADDR_TPS_AXIS + i, tps_axis[i]);
 }

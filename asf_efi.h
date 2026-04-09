@@ -5,11 +5,11 @@
 #include "sensors.h"
 #include "injection.h"
 
-extern uint16_t tps;       // 0–1000 per-mille (0 = 0%, 1000 = 100%)
-extern float    fps_bar;
+extern uint8_t  tps;       // 0–100 percent
+extern uint8_t  fps_bar;   // 0–80, units = 0.125 bar
 extern int16_t  iat_degc;  // whole °C
 extern int16_t  et_degc;   // whole °C
-extern float    bat_v;     // battery voltage in V
+extern uint8_t  bat_v;     // battery voltage in 1/16 V units (0.0625 V per count)
 
 extern volatile uint16_t rpm;
 extern volatile bool     pump_active;
@@ -18,7 +18,7 @@ extern bool              pump_mode_always_on; // false = PID (default), true = f
 extern uint8_t           pump_pwm;           // last analogWrite value to pump (0–255)
 
 extern uint16_t rpm_axis[RPM_BINS];
-extern uint16_t tps_axis[TPS_BINS];   // 0–1000 per-mille breakpoints
+extern uint8_t  tps_axis[TPS_BINS];   // 0–100 percent breakpoints
 
 extern uint16_t inj_map[RPM_BINS][TPS_BINS];
 extern uint16_t iat_correction[IAT_CORR_BINS];  // Q8.8: 256 = 1.0 (no correction)

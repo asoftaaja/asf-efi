@@ -169,30 +169,25 @@ static void dispatchCommand(const uint8_t *buf, uint8_t len)
     }
 
     case CMD_WRITE_AXIS: {
-        // Payload: 12 × uint16 RPM (24 bytes) + 5 × uint16 TPS per-mille (10 bytes) = 34 bytes
-        if (plen != RPM_BINS * 2 + TPS_BINS * 2) { sendNACK(); return; }
+        // Payload: 12 × uint16 RPM (24 bytes) + 5 × uint8 TPS percent (5 bytes) = 29 bytes
+        if (plen != RPM_BINS * 2 + TPS_BINS) { sendNACK(); return; }
         for (uint8_t i = 0; i < RPM_BINS; i++)
             rpm_axis[i] = ((uint16_t)payload[i * 2] << 8) | payload[i * 2 + 1];
-        for (uint8_t i = 0; i < TPS_BINS; i++) {
-            uint8_t off = RPM_BINS * 2 + i * 2;
-            tps_axis[i] = ((uint16_t)payload[off] << 8) | payload[off + 1];
-        }
+        for (uint8_t i = 0; i < TPS_BINS; i++)
+            tps_axis[i] = payload[RPM_BINS * 2 + i];
         saveAxisBreakpoints();
         sendACK();
         break;
     }
 
     case CMD_READ_AXIS: {
-        uint8_t buf[RPM_BINS * 2 + TPS_BINS * 2];
+        uint8_t buf[RPM_BINS * 2 + TPS_BINS];
         for (uint8_t i = 0; i < RPM_BINS; i++) {
             buf[i * 2]     = rpm_axis[i] >> 8;
             buf[i * 2 + 1] = rpm_axis[i] & 0xFF;
         }
-        for (uint8_t i = 0; i < TPS_BINS; i++) {
-            uint8_t off = RPM_BINS * 2 + i * 2;
-            buf[off]     = tps_axis[i] >> 8;
-            buf[off + 1] = tps_axis[i] & 0xFF;
-        }
+        for (uint8_t i = 0; i < TPS_BINS; i++)
+            buf[RPM_BINS * 2 + i] = tps_axis[i];
         sendPacket(CMD_READ_AXIS, buf, sizeof(buf));
         break;
     }
@@ -279,8 +274,8 @@ void processSerial()
 void printSensorDebug()
 {
     Serial.print(F("RPM:"));    Serial.print(rpm);
-    Serial.print(F(" TPS:"));   Serial.print(tps / 10); Serial.print(F("%"));
-    Serial.print(F(" FPS:"));   Serial.print(fps_bar, 2);  Serial.print(F("bar"));
+    Serial.print(F(" TPS:"));   Serial.print(tps); Serial.print(F("%"));
+    Serial.print(F(" FPS:"));   Serial.print(fps_bar / 8.0f, 2);  Serial.print(F("bar"));
     Serial.print(F(" IAT:"));   Serial.print(iat_degc); Serial.print(F("C("));
     Serial.print(analogRead(PIN_IAT)); Serial.print(F(")"));
     Serial.print(F(" ET:"));    Serial.print(et_degc);  Serial.print(F("C("));
@@ -291,33 +286,28 @@ void printSensorDebug()
 
 void sendSensorData()
 {
-    uint8_t buf[16];
+    uint8_t buf[13];
     // rpm: uint16
     buf[0] = rpm >> 8;
     buf[1] = rpm & 0xFF;
-    // tps: uint16, 0–1000 representing 0.000–1.000 (already in per-mille)
-    buf[2] = tps >> 8;
-    buf[3] = tps & 0xFF;
-    // fps: uint16, value × 100 (0.00–10.00 bar)
-    uint16_t fps_u = (uint16_t)(fps_bar * 100.0f);
-    buf[4] = fps_u >> 8;
-    buf[5] = fps_u & 0xFF;
+    // tps: uint8, 0–100 percent
+    buf[2] = tps;
+    // fps: uint8, units = 0.125 bar (0–80)
+    buf[3] = fps_bar;
     // iat: int16, value × 10 (0.1 °C resolution)
     int16_t iat_i = (int16_t)((int32_t)iat_degc * 10);
-    buf[6]  = (uint8_t)(iat_i >> 8);
-    buf[7]  = (uint8_t)(iat_i & 0xFF);
+    buf[4]  = (uint8_t)(iat_i >> 8);
+    buf[5]  = (uint8_t)(iat_i & 0xFF);
     // et: int16, value × 10
     int16_t et_i = (int16_t)((int32_t)et_degc * 10);
-    buf[8]  = (uint8_t)(et_i >> 8);
-    buf[9]  = (uint8_t)(et_i & 0xFF);
+    buf[6]  = (uint8_t)(et_i >> 8);
+    buf[7]  = (uint8_t)(et_i & 0xFF);
     // pump active flag
-    buf[10] = pump_active ? 1 : 0;
-    // bat_v: uint16, value × 100 (e.g. 12.34 V → 1234)
-    uint16_t bat_u = (uint16_t)(bat_v * 100.0f);
-    buf[11] = bat_u >> 8;
-    buf[12] = bat_u & 0xFF;
+    buf[8] = pump_active ? 1 : 0;
+    // bat_v: uint8, 1/16 V per count
+    buf[9] = bat_v;
     // pump duty: raw PWM (0–255)
-    buf[13] = pump_pwm;
+    buf[10] = pump_pwm;
     // injector duty: per-mille (0–1000)
     uint16_t inj_duty = 0;
     if (rpm > 0 && last_pulse_width_us > 0) {
@@ -327,8 +317,8 @@ void sendSensorData()
         inj_duty = (uint16_t)((uint32_t)last_pulse_width_us * 1000UL / period_us);
         if (inj_duty > 1000) inj_duty = 1000;
     }
-    buf[14] = inj_duty >> 8;
-    buf[15] = inj_duty & 0xFF;
+    buf[11] = inj_duty >> 8;
+    buf[12] = inj_duty & 0xFF;
 
     sendPacket(CMD_READ_SENSORS, buf, sizeof(buf));
 }

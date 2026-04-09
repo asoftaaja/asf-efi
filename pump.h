@@ -11,7 +11,7 @@
 extern uint8_t pump_pwm;   // last analogWrite value written to pump (0–255)
 
 void initPump();
-void updatePump(float fps_bar, uint16_t rpm);  // PID iteration, call each loop
+void updatePump(uint8_t fps_eighth_bar, uint16_t rpm);  // PID iteration, call each loop
 void disablePump();                            // immediate shutoff
 void primePump();                              // start a timed prime cycle
 bool isPriming();                              // true while prime cycle is active

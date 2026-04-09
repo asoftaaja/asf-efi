@@ -26,7 +26,7 @@ extern volatile uint16_t last_pulse_width_us;
 void     initInjection();
 
 // Compute final pulse width (µs) from map + corrections
-uint16_t calculatePulseWidth(uint16_t rpm_val, uint16_t tps_val,
+uint16_t calculatePulseWidth(uint16_t rpm_val, uint8_t tps_val,
                              int16_t iat_degc, int16_t et_degc);
 
 // Open injector and schedule close via Timer1 COMPA ISR

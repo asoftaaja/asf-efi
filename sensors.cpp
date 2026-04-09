@@ -51,17 +51,19 @@ static int16_t lookupTemp(uint16_t adc, const TempEntry *table, uint8_t bins)
     return 25;
 }
 
-uint16_t readTPS()
+uint8_t readTPS()
 {
-    uint32_t pm = (uint32_t)analogRead(PIN_TPS) * 1000UL / 1023UL;
-    return (uint16_t)(pm > 1000 ? 1000 : pm);
+    uint8_t pct = (uint8_t)((uint32_t)analogRead(PIN_TPS) * 100UL / 1023UL);
+    return pct > 100 ? 100 : pct;
 }
 
-float readFPS()
+uint8_t readFPS()
 {
-    float voltage = analogRead(PIN_FPS) * (5.0f / 1023.0f);
-    // 0.5 V = 0 bar, 4.5 V = 10 bar  →  bar = (V − 0.5) × 2.5
-    return constrain((voltage - 0.5f) * 2.5f, 0.0f, 10.0f);
+    // 0.5 V = 0 bar (ADC ≈ 102), 4.5 V = 10 bar (ADC ≈ 921), span ≈ 819 counts
+    // Returns 0–80 in units of 0.125 bar (1/8 bar per count).
+    int32_t v = (int32_t)analogRead(PIN_FPS) - 102;
+    int32_t r = v * 80 / 819;
+    return (uint8_t)(r < 0 ? 0 : r > 80 ? 80 : r);
 }
 
 int16_t readIAT()
@@ -74,8 +76,9 @@ int16_t readET()
     return lookupTemp(analogRead(PIN_ET), et_table, ET_BINS);
 }
 
-float readBatV()
+uint8_t readBatV()
 {
-    // Voltage divider ratio 3.185:1 → Vbat = ADC × (5.0 × 3.185 / 1023.0)
-    return analogRead(PIN_BAT) * (15.92f / 1023.0f);
+    // Voltage divider ratio 3.185:1 → Vbat = ADC × (5.0 × 3.185 / 1023.0) ≈ ADC × 15.925 / 1023
+    // Returns sixteenths of a volt (0.0625 V per count): multiply by 16, so factor ≈ 255/1023.
+    return (uint8_t)((uint32_t)analogRead(PIN_BAT) * 255 / 1023);
 }

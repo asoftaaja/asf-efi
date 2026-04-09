@@ -20,8 +20,9 @@ void initPump()
     digitalWrite(PIN_LED_GREEN, LOW);
 }
 
-void updatePump(float fps_bar_val, uint16_t rpm_val)
+void updatePump(uint8_t fps_eighth_bar, uint16_t rpm_val)
 {
+    float fps_bar_val = fps_eighth_bar / 8.0f;
     float target = (rpm_val >= pressure_threshold_rpm)
                    ? pressure_high_bar
                    : pressure_low_bar;
