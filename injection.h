@@ -6,6 +6,10 @@
 #define PIN_INJECTOR  4    // D4, high = open
 #define PIN_LED_RED   13   // D13, high = on
 
+// Injector port macros (D4 = PD4)
+#define INJECTOR_ON()   (PORTD |=  (1 << PD4))
+#define INJECTOR_OFF()  (PORTD &= ~(1 << PD4))
+
 // Map dimensions
 #define RPM_BINS  12
 #define TPS_BINS   5

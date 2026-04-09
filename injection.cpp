@@ -81,7 +81,7 @@ void initInjection()
 {
     pinMode(PIN_INJECTOR, OUTPUT);
     pinMode(PIN_LED_RED,  OUTPUT);
-    digitalWrite(PIN_INJECTOR, LOW);
+    INJECTOR_OFF();                  // injector off
     digitalWrite(PIN_LED_RED,  LOW);
 }
 
@@ -111,7 +111,7 @@ void fireInjector(uint16_t pulse_width_us)
     // Convert µs to Timer1 ticks (prescaler 8, 0.5 µs/tick → multiply by 2)
     uint16_t ticks = (uint16_t)min((uint32_t)pulse_width_us * 2UL, (uint32_t)65000U);
 
-    digitalWrite(PIN_INJECTOR, HIGH);
+    INJECTOR_ON();                   // injector on
     last_injection_ms = millis();
 
     // Schedule close via Timer1 output compare A
@@ -126,12 +126,12 @@ void fireInjector(uint16_t pulse_width_us)
 void shutoffInjector()
 {
     TIMSK1 &= ~(1 << OCIE1A);    // disable compare interrupt
-    digitalWrite(PIN_INJECTOR, LOW);
+    INJECTOR_OFF();              // injector off
 }
 
 // Timer1 output compare A ISR — fires at the scheduled injector close time
 ISR(TIMER1_COMPA_vect)
 {
     TIMSK1 &= ~(1 << OCIE1A);
-    digitalWrite(PIN_INJECTOR, LOW);
+    INJECTOR_OFF();              // injector off
 }
