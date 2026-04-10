@@ -123,6 +123,19 @@ void loadFromEEPROM()
     } else {
         pump_mode_always_on = (EEPROM.read(EEPROM_ADDR_PUMP_MODE) != 0);
     }
+
+    // TPS calibration — separate magic; defaults match previous hardcoded values
+    if (EEPROM.read(EEPROM_ADDR_TPS_CAL_MAGIC) != EEPROM_TPS_CAL_MAGIC_VALUE) {
+        tps_adc_closed = 30;
+        tps_adc_open   = 730;
+        saveTpsCalibration();
+        EEPROM.write(EEPROM_ADDR_TPS_CAL_MAGIC, EEPROM_TPS_CAL_MAGIC_VALUE);
+    } else {
+        tps_adc_closed = ((uint16_t)EEPROM.read(EEPROM_ADDR_TPS_CAL)     << 8)
+                       |  (uint16_t)EEPROM.read(EEPROM_ADDR_TPS_CAL + 1);
+        tps_adc_open   = ((uint16_t)EEPROM.read(EEPROM_ADDR_TPS_CAL + 2) << 8)
+                       |  (uint16_t)EEPROM.read(EEPROM_ADDR_TPS_CAL + 3);
+    }
 }
 
 void saveInjectionMap()
@@ -169,6 +182,14 @@ void saveETCorrection()
 void savePumpMode()
 {
     EEPROM.update(EEPROM_ADDR_PUMP_MODE, pump_mode_always_on ? 1 : 0);
+}
+
+void saveTpsCalibration()
+{
+    EEPROM.update(EEPROM_ADDR_TPS_CAL,     tps_adc_closed >> 8);
+    EEPROM.update(EEPROM_ADDR_TPS_CAL + 1, tps_adc_closed & 0xFF);
+    EEPROM.update(EEPROM_ADDR_TPS_CAL + 2, tps_adc_open   >> 8);
+    EEPROM.update(EEPROM_ADDR_TPS_CAL + 3, tps_adc_open   & 0xFF);
 }
 
 void saveAxisBreakpoints()

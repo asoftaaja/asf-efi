@@ -28,6 +28,9 @@ float    pressure_high_bar;
 
 float    pid_kp, pid_ki, pid_kd;
 
+uint16_t tps_adc_closed = 30;   // ADC count at fully closed throttle (loaded from EEPROM)
+uint16_t tps_adc_open   = 730;  // ADC count at fully open throttle (loaded from EEPROM)
+
 // ---- LED blink state --------------------------------------------------------
 
 // Both LEDs blink at 5 Hz (toggle every 100 ms) when their condition is active

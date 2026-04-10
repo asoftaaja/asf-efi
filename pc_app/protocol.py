@@ -29,6 +29,8 @@ CMD_WRITE_AXIS       = 0x0B
 CMD_READ_AXIS        = 0x0C
 CMD_READ_PUMP_CONFIG  = 0x0F
 CMD_READ_CORRECTIONS  = 0x10
+CMD_TPS_CAL_CLOSED    = 0x11  # no payload; ECU captures live ADC as 0% position
+CMD_TPS_CAL_OPEN      = 0x12  # no payload; ECU captures live ADC as 100% position
 
 RPM_BINS = 12
 TPS_BINS = 5

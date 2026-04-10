@@ -51,15 +51,9 @@ static int16_t lookupTemp(uint16_t adc, const TempEntry *table, uint8_t bins)
     return 25;
 }
 
-// TPS calibration — measure actual ADC counts at closed and WOT,
-// update these two constants, no other changes needed.
-#define TPS_ADC_CLOSED   30      // ADC count at fully closed throttle
-#define TPS_ADC_OPEN     730    // ADC count at fully open throttle (mechanical WOT)
-
-
 uint8_t readTPS()
 {
-    uint8_t pct = (uint8_t)(((uint32_t)analogRead(PIN_TPS) - TPS_ADC_CLOSED) * 100UL / (TPS_ADC_OPEN-TPS_ADC_CLOSED));
+    uint8_t pct = (uint8_t)(((uint32_t)analogRead(PIN_TPS) - tps_adc_closed) * 100UL / (tps_adc_open - tps_adc_closed));
     return pct > 100 ? 100 : pct;
 }
 

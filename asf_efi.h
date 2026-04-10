@@ -29,3 +29,6 @@ extern float    pressure_low_bar;
 extern float    pressure_high_bar;
 
 extern float    pid_kp, pid_ki, pid_kd;
+
+extern uint16_t tps_adc_closed;  // ADC count at fully closed throttle (calibrated)
+extern uint16_t tps_adc_open;    // ADC count at fully open throttle (calibrated)

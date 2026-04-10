@@ -36,6 +36,9 @@
 #define EEPROM_ADDR_PUMP_MODE         193  // 1 byte: 0=PID, 1=always_on
 #define EEPROM_ADDR_PUMP_MODE_MAGIC   194  // 1 byte: magic when pump mode section init'd
 #define EEPROM_PUMP_MODE_MAGIC_VALUE 0xA9
+#define EEPROM_ADDR_TPS_CAL           195  // 4 bytes: closed uint16 + open uint16 (big-endian)
+#define EEPROM_ADDR_TPS_CAL_MAGIC     199  // 1 byte: magic when TPS cal section init'd
+#define EEPROM_TPS_CAL_MAGIC_VALUE   0xAD
 
 void loadFromEEPROM();       // load all sections; writes defaults if uninitialised
 void saveInjectionMap();
@@ -45,3 +48,4 @@ void saveIATCorrection();
 void saveETCorrection();
 void saveAxisBreakpoints();
 void savePumpMode();
+void saveTpsCalibration();

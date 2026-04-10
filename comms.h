@@ -25,6 +25,8 @@
 #define CMD_READ_AXIS       0x0C  // PC→AVR: no payload; AVR→PC: same 29-byte layout
 #define CMD_READ_PUMP_CONFIG  0x0F // PC→AVR: no payload; AVR→PC: 23 bytes — kp/ki/kd + low/high bar + threshold RPM + pump mode
 #define CMD_READ_CORRECTIONS  0x10 // PC→AVR: no payload; AVR→PC: 40 bytes — 10 × uint16 IAT Q8.8 + 10 × uint16 ET Q8.8
+#define CMD_TPS_CAL_CLOSED    0x11 // PC→AVR: no payload; captures live ADC as 0% (closed) position
+#define CMD_TPS_CAL_OPEN      0x12 // PC→AVR: no payload; captures live ADC as 100% (open) position
 #define CMD_ACK             0x06  // AVR→PC: acknowledged
 #define CMD_NACK            0x07  // AVR→PC: rejected (bad CRC or unknown cmd)
 

@@ -221,6 +221,18 @@ static void dispatchCommand(const uint8_t *buf, uint8_t len)
         break;
     }
 
+    case CMD_TPS_CAL_CLOSED:
+        tps_adc_closed = analogRead(PIN_TPS);
+        saveTpsCalibration();
+        sendACK();
+        break;
+
+    case CMD_TPS_CAL_OPEN:
+        tps_adc_open = analogRead(PIN_TPS);
+        saveTpsCalibration();
+        sendACK();
+        break;
+
     default:
         sendNACK();
         break;
