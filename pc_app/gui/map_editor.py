@@ -19,7 +19,7 @@ from protocol import (
 )
 from data_model import ECUState
 
-COLOR_CURSOR  = "#FFD700"   # gold
+COLOR_CURSOR  = "#FF0000"   # red
 COLOR_NORMAL  = "white"
 COLOR_EDIT    = "#E8F4FF"   # light blue when editing
 
@@ -234,9 +234,11 @@ class MapEditor(ttk.LabelFrame):
             pr, pc = self._cursor
             f = self._cell_frames[pr][pc]
             f.configure(background=f._normal_bg)
+            self._cells[pr][pc].pack_configure(padx=2, pady=2)
 
         # Highlight new cell
         self._cell_frames[new_row][new_col].configure(background=COLOR_CURSOR)
+        self._cells[new_row][new_col].pack_configure(padx=4, pady=4)
         self._cursor = new_pos
 
     # ── Read map from ECU ─────────────────────────────────────────────────────
