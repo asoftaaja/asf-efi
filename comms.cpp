@@ -275,7 +275,7 @@ void printSensorDebug()
 {
     Serial.print(F("RPM:"));    Serial.print(rpm);
     Serial.print(F(" TPS:"));   Serial.print(tps); Serial.print(F("%"));
-    Serial.print(F(" FPS:"));   Serial.print(fps_bar / 8.0f, 2);  Serial.print(F("bar"));
+    Serial.print(F(" FPS:"));   Serial.print(fps_sixteenth_bar / 16.0f, 2); Serial.print(F("bar"));
     Serial.print(F(" IAT:"));   Serial.print(iat_degc); Serial.print(F("C("));
     Serial.print(analogRead(PIN_IAT)); Serial.print(F(")"));
     Serial.print(F(" ET:"));    Serial.print(et_degc);  Serial.print(F("C("));
@@ -292,8 +292,8 @@ void sendSensorData()
     buf[1] = rpm & 0xFF;
     // tps: uint8, 0–100 percent
     buf[2] = tps;
-    // fps: uint8, units = 0.125 bar (0–80)
-    buf[3] = fps_bar;
+    // fps: uint8, units = 0.0625 bar (1/16 bar, 0–160)
+    buf[3] = fps_sixteenth_bar;
     // iat: int16, value × 10 (0.1 °C resolution)
     int16_t iat_i = (int16_t)((int32_t)iat_degc * 10);
     buf[4]  = (uint8_t)(iat_i >> 8);

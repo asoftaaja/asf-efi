@@ -8,7 +8,7 @@
 // ---- Global state (shared via asf_efi.h) ------------------------------------
 
 uint8_t  tps      = 0;
-uint8_t  fps_bar  = 0;
+uint8_t  fps_sixteenth_bar  = 0;
 int16_t  iat_degc = 25;
 int16_t  et_degc  = 25;
 uint8_t  bat_v    = 0;
@@ -96,7 +96,7 @@ void loop()
 {
     // 1. Read sensors
     tps      = readTPS();
-    fps_bar  = readFPS();
+    fps_sixteenth_bar  = readFPS();
     iat_degc = readIAT();
     et_degc  = readET();
     bat_v    = readBatV();
@@ -132,7 +132,7 @@ void loop()
             pump_pwm = 255;
             analogWrite(PIN_PUMP, 255);
         } else {
-            updatePump(fps_bar, rpm);
+            updatePump(fps_sixteenth_bar, rpm);
         }
     }
 

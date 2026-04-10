@@ -19,12 +19,12 @@ void initPump()
     digitalWrite(PIN_LED_GREEN, LOW);
 }
 
-void updatePump(uint8_t fps_eighth_bar, uint16_t rpm_val)
+void updatePump(uint8_t fps_sixteenth_bar, uint16_t rpm_val)
 {
     float target_bar = (rpm_val >= pressure_threshold_rpm)
                        ? pressure_high_bar
                        : pressure_low_bar;
-    int16_t target = (int16_t)(target_bar * 8.0f + 0.5f);  // convert to 1/8 bar
+    int16_t target = (int16_t)(target_bar * 16.0f + 0.5f);  // convert to 1/16 bar
 
     int16_t kp = (int16_t)pid_kp;
     int16_t ki = (int16_t)pid_ki;
@@ -34,15 +34,26 @@ void updatePump(uint8_t fps_eighth_bar, uint16_t rpm_val)
     if (dt_ms < 1) dt_ms = 1;
     pid_prev_ms = now;
 
-    int16_t error  = target - (int16_t)fps_eighth_bar;          // 1/8 bar
-    pid_integral  += (int32_t)error * dt_ms;
-    pid_integral   = constrain(pid_integral, -160000L, 160000L); // anti-windup (≈±20 bar·s)
+    int16_t error = target - (int16_t)fps_sixteenth_bar;  // 1/16 bar
 
-    // output = kp*(error/8) + ki*(integral/8000)
-    //        = (kp*error*1000 + ki*integral) / 8000
+    // Tentative integral update
+    int32_t new_integral = constrain(
+        pid_integral + (int32_t)error * dt_ms, -320000L, 320000L);
+
+    // output = kp*(error/16) + ki*(integral/16000)
+    //        = (kp*error*1000 + ki*integral) / 16000
     int32_t output_scaled = (int32_t)kp * error * 1000L
-                          + (int32_t)ki * pid_integral;
-    pump_pwm = (uint8_t)constrain(output_scaled / 8000L, 0L, 255L);
+                          + (int32_t)ki * new_integral;
+
+    // Conditional integration: don't wind further when output is already saturated
+    // in the same direction as the error (pump can't actively lower pressure)
+    bool saturated_low  = (output_scaled <= 0L        && error < 0);
+    bool saturated_high = (output_scaled >= 4080000L   && error > 0);  // 255*16000
+    if (!saturated_low && !saturated_high) {
+        pid_integral = new_integral;
+    }
+
+    pump_pwm = (uint8_t)constrain(output_scaled / 16000L, 0L, 255L);
     analogWrite(PIN_PUMP, pump_pwm);
 }
 

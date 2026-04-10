@@ -6,7 +6,7 @@
 #include "injection.h"
 
 extern uint8_t  tps;       // 0–100 percent
-extern uint8_t  fps_bar;   // 0–80, units = 0.125 bar
+extern uint8_t  fps_sixteenth_bar;  // 0–160, units = 0.0625 bar (1/16 bar)
 extern int16_t  iat_degc;  // whole °C
 extern int16_t  et_degc;   // whole °C
 extern uint8_t  bat_v;     // battery voltage in 1/16 V units (0.0625 V per count)

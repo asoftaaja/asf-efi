@@ -206,7 +206,7 @@ def decode_sensor_data(payload: bytes) -> SensorData:
     return SensorData(
         rpm=rpm,
         tps=tps_raw / 100.0,
-        fps_bar=fps_raw / 8.0,
+        fps_bar=fps_raw / 16.0,
         iat_degc=iat_raw / 10.0,
         et_degc=et_raw / 10.0,
         pump_active=bool(pump_active),

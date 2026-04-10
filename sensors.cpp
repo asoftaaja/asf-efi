@@ -66,10 +66,10 @@ uint8_t readTPS()
 uint8_t readFPS()
 {
     // 0.5 V = 0 bar (ADC ≈ 102), 4.5 V = 10 bar (ADC ≈ 921), span ≈ 819 counts
-    // Returns 0–80 in units of 0.125 bar (1/8 bar per count).
+    // Returns 0–160 in units of 0.0625 bar (1/16 bar per count).
     int32_t v = (int32_t)analogRead(PIN_FPS) - 102;
-    int32_t r = v * 80 / 819;
-    return (uint8_t)(r < 0 ? 0 : r > 80 ? 80 : r);
+    int32_t r = v * 160 / 819;
+    return (uint8_t)(r < 0 ? 0 : r > 160 ? 160 : r);
 }
 
 int16_t readIAT()
