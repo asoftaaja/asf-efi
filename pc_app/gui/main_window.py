@@ -195,13 +195,16 @@ class MainWindow(tk.Tk):
         self._state.device_map_buf = None
         self._state.device_rpm_axis_buf = None
         self._state.device_tps_axis_buf = None
+        self._state.device_iat_corr_buf = None
+        self._state.device_et_corr_buf  = None
         self._dismiss_sync_warning()
         # One-shot check — the worker reads map + axis at startup within ~0.5 s
         self.after(1500, self._check_map_loaded)
 
     def _check_map_loaded(self) -> None:
         has_data = (self._state.map_fresh.is_set() or
-                    self._state.axis_fresh.is_set())
+                    self._state.axis_fresh.is_set() or
+                    self._state.config_fresh.is_set())
         if has_data and not self._buffers_match_state():
             self._show_sync_warning(
                 "Device values differ from the loaded tune file. "
@@ -225,7 +228,10 @@ class MainWindow(tk.Tk):
         axis_ok = (s.device_rpm_axis_buf is None or
                    (s.device_rpm_axis_buf == s.rpm_axis and
                     s.device_tps_axis_buf == s.tps_axis))
-        return map_ok and axis_ok
+        corr_ok = (s.device_iat_corr_buf is None or
+                   (s.device_iat_corr_buf == s.iat_corr and
+                    s.device_et_corr_buf  == s.et_corr))
+        return map_ok and axis_ok and corr_ok
 
     def _show_sync_warning(self, message: str) -> None:
         self._sync_label.config(text=f"  \u26a0  {message}")
@@ -247,6 +253,10 @@ class MainWindow(tk.Tk):
             s.rpm_axis = s.device_rpm_axis_buf
             s.tps_axis = s.device_tps_axis_buf
             self._map_editor._refresh_axis_from_state()
+        if s.device_iat_corr_buf is not None:
+            s.iat_corr = s.device_iat_corr_buf
+            s.et_corr  = s.device_et_corr_buf
+            self._corr_panel.refresh_from_state()
         self._dismiss_sync_warning()
 
     def _write_all_to_device(self) -> None:
@@ -266,6 +276,8 @@ class MainWindow(tk.Tk):
         s.device_map_buf      = copy.deepcopy(s.inj_map)
         s.device_rpm_axis_buf = list(s.rpm_axis)
         s.device_tps_axis_buf = list(s.tps_axis)
+        s.device_iat_corr_buf = list(s.iat_corr)
+        s.device_et_corr_buf  = list(s.et_corr)
         self._dismiss_sync_warning()
 
     # ── Enable/disable tuning panels ─────────────────────────────────────────

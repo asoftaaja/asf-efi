@@ -113,8 +113,7 @@ class SerialWorker(threading.Thread):
             pkt = self._read_packet(WRITE_TIMEOUT)
             if pkt and pkt[0] == CMD_READ_CORRECTIONS:
                 iat_corr, et_corr = decode_corrections(pkt[1])
-                self._state.iat_corr = iat_corr
-                self._state.et_corr = et_corr
+                self._state.buffer_device_corrections(iat_corr, et_corr)
         except (serial.SerialException, ValueError):
             pass  # non-fatal; panels will show default values
 

@@ -36,6 +36,8 @@ class ECUState:
         self.device_map_buf = None       # type: Optional[List[List[int]]]
         self.device_rpm_axis_buf = None  # type: Optional[List[int]]
         self.device_tps_axis_buf = None  # type: Optional[List[float]]
+        self.device_iat_corr_buf = None  # type: Optional[List[float]]
+        self.device_et_corr_buf  = None  # type: Optional[List[float]]
 
         # ── Connection state ─────────────────────────────────────────────────
         self.connected = False
@@ -64,6 +66,11 @@ class ECUState:
         self.device_rpm_axis_buf = rpm_pts
         self.device_tps_axis_buf = tps_pts
         self.axis_fresh.set()
+
+    def buffer_device_corrections(self, iat: List[float], et: List[float]) -> None:
+        self.device_iat_corr_buf = iat
+        self.device_et_corr_buf  = et
+        self.config_fresh.set()
 
     def get_sensors(self):  # type: () -> Optional[SensorData]
         with self._sensors_lock:
