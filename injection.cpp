@@ -14,9 +14,6 @@ uint8_t  tps_axis[TPS_BINS] = { 0, 25, 50, 75, 100 };  // 0–100 percent
 static const int16_t IAT_CORR_TEMPS[IAT_CORR_BINS] = { -20,  0, 20, 40,  70 };
 static const int16_t ET_CORR_TEMPS[ET_CORR_BINS]   = {   0, 25, 50, 80, 100 };
 
-// Maximum safe injection pulse (µs) — prevents injector from staying open too long
-#define MAX_PULSE_US 25000U
-
 // ---- Internal helpers -------------------------------------------------------
 
 static uint16_t interpolateMap(uint16_t rpm_val, uint8_t tps_val)

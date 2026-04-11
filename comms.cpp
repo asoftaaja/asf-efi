@@ -1,4 +1,5 @@
 #include "comms.h"
+#include "accel_pump.h"
 #include "asf_efi.h"
 #include "pump.h"
 #include "eeprom_map.h"
@@ -232,6 +233,27 @@ static void dispatchCommand(const uint8_t *buf, uint8_t len)
         saveTpsCalibration();
         sendACK();
         break;
+
+    case CMD_WRITE_ACCEL_PUMP:
+        if (plen != 6) { sendNACK(); return; }
+        accel_threshold_pct_per_s = ((uint16_t)payload[0] << 8) | payload[1];
+        accel_extra_us             = ((uint16_t)payload[2] << 8) | payload[3];
+        accel_duration_ms          = ((uint16_t)payload[4] << 8) | payload[5];
+        saveAccelPump();
+        sendACK();
+        break;
+
+    case CMD_READ_ACCEL_PUMP: {
+        uint8_t buf[6];
+        buf[0] = accel_threshold_pct_per_s >> 8;
+        buf[1] = accel_threshold_pct_per_s & 0xFF;
+        buf[2] = accel_extra_us >> 8;
+        buf[3] = accel_extra_us & 0xFF;
+        buf[4] = accel_duration_ms >> 8;
+        buf[5] = accel_duration_ms & 0xFF;
+        sendPacket(CMD_READ_ACCEL_PUMP, buf, sizeof(buf));
+        break;
+    }
 
     default:
         sendNACK();

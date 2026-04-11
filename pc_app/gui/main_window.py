@@ -11,7 +11,9 @@ import tune_io
 from protocol import (
     CMD_WRITE_MAP, CMD_WRITE_AXIS, CMD_WRITE_PID,
     CMD_WRITE_PRESSURE, CMD_WRITE_IAT_CORR, CMD_WRITE_ET_CORR,
+    CMD_WRITE_ACCEL_PUMP,
     encode_map, encode_axis, encode_pid, encode_pressure, encode_corrections,
+    encode_accel_pump,
 )
 from gui.connection_panel  import ConnectionPanel
 from gui.sensor_panel      import SensorPanel
@@ -21,6 +23,7 @@ from gui.pressure_panel    import PressurePanel
 from gui.correction_panel  import CorrectionPanel
 from gui.pump_panel        import PumpPanel
 from gui.tune_file_panel   import TuneFilePanel
+from gui.accel_pump_panel  import AccelPumpPanel
 
 
 class MainWindow(tk.Tk):
@@ -120,6 +123,9 @@ class MainWindow(tk.Tk):
         self._pump_panel = PumpPanel(tune_inner, self._get_worker)
         self._pump_panel.grid(row=0, column=2, padx=8, pady=4, sticky="n")
 
+        self._accel_pump_panel = AccelPumpPanel(tune_inner, self._state, self._get_worker)
+        self._accel_pump_panel.grid(row=0, column=3, padx=8, pady=4, sticky="n")
+
         # Wire sensor panel → pump panel for button state sync
         self._sensor_panel.set_pump_panel(self._pump_panel)
 
@@ -136,6 +142,7 @@ class MainWindow(tk.Tk):
             self._pid_panel,
             self._pressure_panel,
             self._pump_panel,
+            self._accel_pump_panel,
             self._corr_panel,
             self._write_all_btn,
         ]
@@ -171,6 +178,7 @@ class MainWindow(tk.Tk):
         self._pid_panel.flush_to_state()
         self._pressure_panel.flush_to_state()
         self._corr_panel.flush_to_state()
+        self._accel_pump_panel.flush_to_state()
 
     def _refresh_all(self) -> None:
         self._map_editor.refresh_from_state()
@@ -178,6 +186,7 @@ class MainWindow(tk.Tk):
         self._pid_panel.refresh_from_state()
         self._pressure_panel.refresh_from_state()
         self._corr_panel.refresh_from_state()
+        self._accel_pump_panel.refresh_from_state()
 
     # ── Worker accessor (passed as callable to panels) ───────────────────────
 
@@ -214,6 +223,7 @@ class MainWindow(tk.Tk):
             self._pid_panel.refresh_from_state()
             self._pressure_panel.refresh_from_state()
             self._corr_panel.refresh_from_state()
+            self._accel_pump_panel.refresh_from_state()
 
     def _on_disconnect(self) -> None:
         self._worker = None
@@ -269,8 +279,9 @@ class MainWindow(tk.Tk):
         worker.send_command(CMD_WRITE_AXIS,     encode_axis(s.rpm_axis, s.tps_axis))
         worker.send_command(CMD_WRITE_PID,      encode_pid(s.pid))
         worker.send_command(CMD_WRITE_PRESSURE, encode_pressure(s.pressure))
-        worker.send_command(CMD_WRITE_IAT_CORR, encode_corrections(s.iat_corr))
-        worker.send_command(CMD_WRITE_ET_CORR,  encode_corrections(s.et_corr))
+        worker.send_command(CMD_WRITE_IAT_CORR,   encode_corrections(s.iat_corr))
+        worker.send_command(CMD_WRITE_ET_CORR,    encode_corrections(s.et_corr))
+        worker.send_command(CMD_WRITE_ACCEL_PUMP, encode_accel_pump(s.accel_pump))
         # Update device buffers to reflect what was just written, so future
         # tune file loads don't falsely flag a mismatch.
         s.device_map_buf      = copy.deepcopy(s.inj_map)

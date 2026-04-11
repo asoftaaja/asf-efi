@@ -1,4 +1,5 @@
 #include "eeprom_map.h"
+#include "accel_pump.h"
 #include "asf_efi.h"
 #include <EEPROM.h>
 
@@ -136,6 +137,19 @@ void loadFromEEPROM()
         tps_adc_open   = ((uint16_t)EEPROM.read(EEPROM_ADDR_TPS_CAL + 2) << 8)
                        |  (uint16_t)EEPROM.read(EEPROM_ADDR_TPS_CAL + 3);
     }
+
+    // Accel pump — separate magic; safe to add without forcing re-init of other sections
+    if (EEPROM.read(EEPROM_ADDR_ACCEL_PUMP_MAGIC) != EEPROM_ACCEL_PUMP_MAGIC_VALUE) {
+        saveAccelPump();
+        EEPROM.write(EEPROM_ADDR_ACCEL_PUMP_MAGIC, EEPROM_ACCEL_PUMP_MAGIC_VALUE);
+    } else {
+        accel_threshold_pct_per_s = ((uint16_t)EEPROM.read(EEPROM_ADDR_ACCEL_PUMP)     << 8)
+                                  |  (uint16_t)EEPROM.read(EEPROM_ADDR_ACCEL_PUMP + 1);
+        accel_extra_us             = ((uint16_t)EEPROM.read(EEPROM_ADDR_ACCEL_PUMP + 2) << 8)
+                                  |  (uint16_t)EEPROM.read(EEPROM_ADDR_ACCEL_PUMP + 3);
+        accel_duration_ms          = ((uint16_t)EEPROM.read(EEPROM_ADDR_ACCEL_PUMP + 4) << 8)
+                                  |  (uint16_t)EEPROM.read(EEPROM_ADDR_ACCEL_PUMP + 5);
+    }
 }
 
 void saveInjectionMap()
@@ -200,4 +214,14 @@ void saveAxisBreakpoints()
     }
     for (uint8_t i = 0; i < TPS_BINS; i++)
         EEPROM.update(EEPROM_ADDR_TPS_AXIS + i, tps_axis[i]);
+}
+
+void saveAccelPump()
+{
+    EEPROM.update(EEPROM_ADDR_ACCEL_PUMP,     accel_threshold_pct_per_s >> 8);
+    EEPROM.update(EEPROM_ADDR_ACCEL_PUMP + 1, accel_threshold_pct_per_s & 0xFF);
+    EEPROM.update(EEPROM_ADDR_ACCEL_PUMP + 2, accel_extra_us >> 8);
+    EEPROM.update(EEPROM_ADDR_ACCEL_PUMP + 3, accel_extra_us & 0xFF);
+    EEPROM.update(EEPROM_ADDR_ACCEL_PUMP + 4, accel_duration_ms >> 8);
+    EEPROM.update(EEPROM_ADDR_ACCEL_PUMP + 5, accel_duration_ms & 0xFF);
 }

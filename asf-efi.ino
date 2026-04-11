@@ -1,6 +1,7 @@
 #include "sensors.h"
 #include "ckps.h"
 #include "injection.h"
+#include "accel_pump.h"
 #include "pump.h"
 #include "comms.h"
 #include "eeprom_map.h"
@@ -75,7 +76,9 @@ static void handle60HzInjection()
     uint32_t now = millis();
     if (now - last_60hz_ms >= PERIOD_60HZ_MS) {
         last_60hz_ms = now;
-        uint16_t pw = calculatePulseWidth(rpm, tps, iat_degc, et_degc);
+        uint16_t pw    = calculatePulseWidth(rpm, tps, iat_degc, et_degc);
+        uint16_t accel = getAccelPumpExtra(now);
+        if (accel > 0) pw = (uint16_t)min((uint32_t)pw + accel, (uint32_t)MAX_PULSE_US);
         fireInjector(pw);
     }
 }
@@ -99,6 +102,7 @@ void loop()
 {
     // 1. Read sensors
     tps      = readTPS();
+    updateAccelPump(tps, millis());
     fps_sixteenth_bar  = readFPS();
     iat_degc = readIAT();
     et_degc  = readET();
@@ -121,7 +125,9 @@ void loop()
             } else if (injection_trigger) {
                 // Low RPM: synchronised to CKPS pulse (flag set by ISR)
                 injection_trigger = false;
-                uint16_t pw = calculatePulseWidth(rpm, tps, iat_degc, et_degc);
+                uint16_t pw    = calculatePulseWidth(rpm, tps, iat_degc, et_degc);
+                uint16_t accel = getAccelPumpExtra(millis());
+                if (accel > 0) pw = (uint16_t)min((uint32_t)pw + accel, (uint32_t)MAX_PULSE_US);
                 fireInjector(pw);
             }
         }
