@@ -1,4 +1,5 @@
 #include "sensors.h"
+#include "asf_efi.h"
 
 // NTC thermistor lookup: {ADC value, temperature °C}
 // Based on 10kΩ NTC (β=3950K) with 10kΩ pull-up to 5V.
