@@ -320,7 +320,7 @@ void printSensorDebug()
 
 void sendSensorData()
 {
-    uint8_t buf[13];
+    uint8_t buf[14];
     // rpm: uint16
     buf[0] = rpm >> 8;
     buf[1] = rpm & 0xFF;
@@ -353,6 +353,8 @@ void sendSensorData()
     }
     buf[11] = inj_duty >> 8;
     buf[12] = inj_duty & 0xFF;
+    // accel pump active flag
+    buf[13] = isAccelPumpActive() ? 1 : 0;
 
     sendPacket(CMD_READ_SENSORS, buf, sizeof(buf));
 }

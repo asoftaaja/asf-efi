@@ -37,6 +37,12 @@ class SensorPanel(ttk.LabelFrame):
             ttk.Label(self, textvariable=var, font=FONT, anchor="w").grid(
                 row=row, column=1, sticky="w", padx=(0, 6), pady=1)
 
+        accel_row = len(fields)
+        ttk.Label(self, text="ACCEL:", anchor="e").grid(
+            row=accel_row, column=0, sticky="e", padx=(6, 2), pady=1)
+        self._accel_label = tk.Label(self, text="---", font=FONT, anchor="w", foreground="gray")
+        self._accel_label.grid(row=accel_row, column=1, sticky="w", padx=(0, 6), pady=1)
+
         self._schedule()
 
     def set_map_editor(self, editor) -> None:
@@ -62,6 +68,10 @@ class SensorPanel(ttk.LabelFrame):
                 self._pdut_var.set(f"{data.pump_duty / 255 * 100:.0f} %")
                 self._idut_var.set(f"{data.inj_duty:.1f} %")
                 self._vbat_var.set(f"{data.bat_v:.2f} V")
+                if data.accel_active:
+                    self._accel_label.config(text="ACTIVE", foreground="#FF8C00")
+                else:
+                    self._accel_label.config(text="---", foreground="gray")
 
                 if self._map_editor:
                     self._map_editor.update_cursor(data.rpm, data.tps)

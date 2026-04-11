@@ -36,3 +36,8 @@ uint16_t getAccelPumpExtra(uint32_t now_ms)
     if (elapsed >= accel_duration_ms) return 0;
     return (uint16_t)((uint32_t)accel_extra_us * (accel_duration_ms - elapsed) / accel_duration_ms);
 }
+
+bool isAccelPumpActive()
+{
+    return accel_active;
+}

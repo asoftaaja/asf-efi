@@ -12,3 +12,6 @@ void updateAccelPump(uint8_t current_tps, uint32_t now_ms);
 
 // Returns additional pulse width (µs) to add to injection; 0 if inactive
 uint16_t getAccelPumpExtra(uint32_t now_ms);
+
+// Returns true while enrichment is active (for telemetry)
+bool isAccelPumpActive();

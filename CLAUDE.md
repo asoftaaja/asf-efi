@@ -42,6 +42,14 @@ The green led must be lit when the system is initialized. When the fuel pump is 
 
 Care must be taken that the injector is never left on if the engine stops. There must be a detection when there is no more CKPS signal (timeout).
 
-## Coding guidelines 
+## Coding guidelines
 
 this will be compiled and run in Arduino IDE but it should still be separated into multiple files.
+
+## Feature documentation
+
+Detailed implementation notes for specific features are kept in the `docs/` folder. Consult these before modifying related code.
+
+| File | Topic |
+|---|---|
+| [docs/accel_pump.md](docs/accel_pump.md) | Accelerator pump enrichment — TPS rate detection, linear decay logic, EEPROM layout (addresses 200–206), serial commands 0x15/0x16, PC app integration |
