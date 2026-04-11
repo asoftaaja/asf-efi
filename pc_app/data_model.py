@@ -40,6 +40,10 @@ class ECUState:
         self.device_iat_corr_buf = None  # type: Optional[List[float]]
         self.device_et_corr_buf  = None  # type: Optional[List[float]]
 
+        # ── Alarm thresholds (local to PC app, not sent to device) ───────────
+        self.et_alarm_threshold: float = 70.0    # °C — alert if ET exceeds this
+        self.vbat_alarm_threshold: float = 11.5   # V  — alert if VBAT drops below this
+
         # ── Connection state ─────────────────────────────────────────────────
         self.connected = False
 

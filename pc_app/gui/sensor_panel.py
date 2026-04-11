@@ -6,6 +6,14 @@ from tkinter import ttk
 from data_model import ECUState
 
 REFRESH_MS = 200
+FLASH_MS   = 500   # flash period half-cycle (2 Hz total)
+
+# Fields that can trigger alarms; mapped to (label_attr, var_attr)
+_ALARM_FIELDS = {
+    "fps":  ("_fps_label",  "_fps_var"),
+    "et":   ("_et_label",   "_et_var"),
+    "vbat": ("_vbat_label", "_vbat_var"),
+}
 
 
 class SensorPanel(ttk.LabelFrame):
@@ -15,27 +23,38 @@ class SensorPanel(ttk.LabelFrame):
         self._map_editor = None   # set by MainWindow after construction
         self._pump_panel = None   # set by MainWindow after construction
 
+        self._alarms: set = set()
+        self._flash_on: bool = False
+
         FONT = ("Courier", 28, "bold")
 
         fields = [
-            ("RPM",    "_rpm_var",  "----"),
-            ("TPS",    "_tps_var",  "--.- %"),
-            ("FPS",    "_fps_var",  "-.-- bar"),
-            ("IAT",    "_iat_var",  "---.- °C"),
-            ("ET",     "_et_var",   "---.- °C"),
-            ("PUMP",   "_pump_var", "OFF"),
-            ("P.DUTY", "_pdut_var", "--- %"),
-            ("I.DUTY", "_idut_var", "--.- %"),
-            ("VBAT",   "_vbat_var", "--.- V"),
+            ("RPM",    "_rpm_var",  "----",     False),
+            ("TPS",    "_tps_var",  "--.- %",   False),
+            ("FPS",    "_fps_var",  "-.-- bar", True),
+            ("IAT",    "_iat_var",  "---.- °C", False),
+            ("ET",     "_et_var",   "---.- °C", True),
+            ("PUMP",   "_pump_var", "OFF",      False),
+            ("P.DUTY", "_pdut_var", "--- %",    False),
+            ("I.DUTY", "_idut_var", "--.- %",   False),
+            ("VBAT",   "_vbat_var", "--.- V",   True),
         ]
 
-        for row, (label, attr, default) in enumerate(fields):
+        # Map from alarm key to label widget
+        _alarm_key_for_var = {"_fps_var": "fps", "_et_var": "et", "_vbat_var": "vbat"}
+
+        for row, (label, attr, default, alarmable) in enumerate(fields):
             ttk.Label(self, text=label + ":", anchor="e").grid(
                 row=row, column=0, sticky="e", padx=(6, 2), pady=1)
             var = tk.StringVar(value=default)
             setattr(self, attr, var)
-            ttk.Label(self, textvariable=var, font=FONT, anchor="w").grid(
-                row=row, column=1, sticky="w", padx=(0, 6), pady=1)
+            if alarmable:
+                lbl = tk.Label(self, textvariable=var, font=FONT, anchor="w")
+                alarm_key = _alarm_key_for_var[attr]
+                setattr(self, f"_{alarm_key}_label", lbl)
+            else:
+                lbl = ttk.Label(self, textvariable=var, font=FONT, anchor="w")
+            lbl.grid(row=row, column=1, sticky="w", padx=(0, 6), pady=1)
 
         accel_row = len(fields)
         ttk.Label(self, text="ACCEL:", anchor="e").grid(
@@ -44,6 +63,7 @@ class SensorPanel(ttk.LabelFrame):
         self._accel_label.grid(row=accel_row, column=1, sticky="w", padx=(0, 6), pady=1)
 
         self._schedule()
+        self._flash_schedule()
 
     def set_map_editor(self, editor) -> None:
         self._map_editor = editor
@@ -53,6 +73,19 @@ class SensorPanel(ttk.LabelFrame):
 
     def _schedule(self) -> None:
         self.after(REFRESH_MS, self._refresh)
+
+    def _flash_schedule(self) -> None:
+        self.after(FLASH_MS, self._flash_tick)
+
+    def _flash_tick(self) -> None:
+        self._flash_on = not self._flash_on
+        for key, (lbl_attr, _) in _ALARM_FIELDS.items():
+            lbl = getattr(self, lbl_attr)
+            if key in self._alarms:
+                lbl.config(foreground="red" if self._flash_on else "")
+            else:
+                lbl.config(foreground="")
+        self._flash_schedule()
 
     def _refresh(self) -> None:
         if self._state.sensor_fresh.is_set():
@@ -73,8 +106,23 @@ class SensorPanel(ttk.LabelFrame):
                 else:
                     self._accel_label.config(text="---", foreground="gray")
 
+                self._update_alarms(data)
+
                 if self._map_editor:
                     self._map_editor.update_cursor(data.rpm, data.tps)
                 if self._pump_panel:
                     self._pump_panel.sync_state(data.pump_active)
         self._schedule()
+
+    def _update_alarms(self, data) -> None:
+        pressure = self._state.pressure
+        rpm = data.rpm
+        target = pressure.high_bar if rpm >= pressure.threshold_rpm else pressure.low_bar
+
+        self._alarms.clear()
+        if data.fps_bar < (target - 0.2):
+            self._alarms.add("fps")
+        if data.et_degc > self._state.et_alarm_threshold:
+            self._alarms.add("et")
+        if data.bat_v < self._state.vbat_alarm_threshold:
+            self._alarms.add("vbat")

@@ -35,6 +35,10 @@ def save_tunefile(path: "Path | str", state) -> None:
             "extra_us": state.accel_pump.extra_us,
             "duration_ms": state.accel_pump.duration_ms,
         },
+        "alarms": {
+            "et_threshold": state.et_alarm_threshold,
+            "vbat_threshold": state.vbat_alarm_threshold,
+        },
     }
     path.write_text(json.dumps(data, indent=2))
     _set_last(path)
@@ -63,6 +67,9 @@ def load_tunefile(path: "Path | str", state) -> None:
         extra_us=int(ap.get("extra_us", 500)),
         duration_ms=int(ap.get("duration_ms", 300)),
     )
+    alarms = data.get("alarms", {})
+    state.et_alarm_threshold   = float(alarms.get("et_threshold",   110.0))
+    state.vbat_alarm_threshold = float(alarms.get("vbat_threshold",  11.5))
     _set_last(path)
 
 
