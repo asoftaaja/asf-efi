@@ -11,8 +11,8 @@
 #define INJECTOR_OFF()  (PORTD &= ~(1 << PD4))
 
 // Map dimensions
-#define RPM_BINS  12
-#define TPS_BINS   5
+#define RPM_BINS  10
+#define TPS_BINS   4
 
 // Maximum safe injection pulse (µs)
 #define MAX_PULSE_US 25000U

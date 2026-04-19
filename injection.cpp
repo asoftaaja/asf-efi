@@ -6,9 +6,9 @@ volatile uint16_t last_pulse_width_us = 0;
 
 // RPM and TPS axis breakpoints for the 12×5 injection map
 // Mutable so they can be updated via the serial command CMD_WRITE_AXIS and saved to EEPROM.
-uint16_t rpm_axis[RPM_BINS] = {  500, 1000, 2000, 3000, 4000,  5000,
-                                  6000, 7000, 8000, 10000, 13000, 16000 };
-uint8_t  tps_axis[TPS_BINS] = { 0, 25, 50, 75, 100 };  // 0–100 percent
+uint16_t rpm_axis[RPM_BINS] = { 1000, 4000, 7000, 9000, 11000,
+                                12500, 13500, 14500, 15500, 17000 };
+uint8_t  tps_axis[TPS_BINS] = { 0, 30, 60, 100 };  // 0–100 percent
 
 // Temperature breakpoints for the correction coefficient arrays (stored in EEPROM)
 static const int16_t IAT_CORR_TEMPS[IAT_CORR_BINS] = { -20,  0, 20, 40,  70 };
@@ -16,7 +16,7 @@ static const int16_t ET_CORR_TEMPS[ET_CORR_BINS]   = {   0, 25, 50, 80, 100 };
 
 // ---- Internal helpers -------------------------------------------------------
 
-static uint16_t interpolateMap(uint16_t rpm_val, uint8_t tps_val)
+static uint8_t interpolateMap(uint16_t rpm_val, uint8_t tps_val)
 {
     // Find surrounding RPM cell
     uint8_t ri = 0;
@@ -46,7 +46,7 @@ static uint16_t interpolateMap(uint16_t rpm_val, uint8_t tps_val)
     int32_t r  = v0  + (((v1  - v0 ) * (int32_t)tps_frac) >> 16);
 
     if (r <= 0) return 0;
-    return (uint16_t)(r > MAX_PULSE_US ? MAX_PULSE_US : r);
+    return (uint8_t)(r > 255 ? 255 : r);
 }
 
 // corrections[] is Q8.8: 256 = 1.0. Returns Q8.8.
@@ -85,8 +85,9 @@ void initInjection()
 uint16_t calculatePulseWidth(uint16_t rpm_val, uint8_t tps_val,
                              int16_t iat_degc_val, int16_t et_degc_val)
 {
-    uint16_t base_pw = interpolateMap(rpm_val, tps_val);
-    if (base_pw == 0) return 0;
+    uint8_t  base_units = interpolateMap(rpm_val, tps_val);  // units of 100 µs
+    if (base_units == 0) return 0;
+    uint16_t base_pw = (uint16_t)base_units * 100u;          // convert to µs
 
     uint16_t iat_corr = interpolateCorrection(iat_degc_val,
                                               IAT_CORR_TEMPS, iat_correction, IAT_CORR_BINS);

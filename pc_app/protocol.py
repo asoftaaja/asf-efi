@@ -34,16 +34,16 @@ CMD_TPS_CAL_OPEN      = 0x12  # no payload; ECU captures live ADC as 100% positi
 CMD_WRITE_ACCEL_PUMP  = 0x15  # payload: 6 bytes (threshold, extra_us, duration_ms as uint16 BE)
 CMD_READ_ACCEL_PUMP   = 0x16  # no payload; response: 6 bytes same layout
 
-RPM_BINS = 12
-TPS_BINS = 5
+RPM_BINS = 10
+TPS_BINS = 4
 IAT_BINS = 5
 ET_BINS  = 5
 
 IAT_CORR_TEMPS = [-20,  0, 20, 40,  70]   # °C breakpoints matching firmware IAT_CORR_TEMPS
 ET_CORR_TEMPS  = [  0, 25, 50, 80, 100]   # °C breakpoints matching firmware ET_CORR_TEMPS
 
-RPM_BREAKPOINTS = [500, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 10000, 13000, 16000]
-TPS_BREAKPOINTS = [0, 25, 50, 75, 100]   # percent integers (0–100)
+RPM_BREAKPOINTS = [1000, 4000, 7000, 9000, 11000, 12500, 13500, 14500, 15500, 17000]
+TPS_BREAKPOINTS = [0, 30, 60, 100]   # percent integers (0–100)
 
 # ── Data classes ─────────────────────────────────────────────────────────────
 
@@ -129,11 +129,11 @@ def parse_packet(data: bytes) -> Optional[Tuple[int, bytes]]:
 # ── Encode helpers ────────────────────────────────────────────────────────────
 
 def encode_map(inj_map: List[List[int]]) -> bytes:
-    """Pack 12×5 injection map to 120 bytes (uint16 big-endian, row-major)."""
+    """Pack 12×5 injection map to 60 bytes (uint8, row-major). 1 unit = 100 µs."""
     buf = bytearray()
     for row in inj_map:
         for val in row:
-            buf += struct.pack('>H', int(val))
+            buf += struct.pack('B', int(val))
     return bytes(buf)
 
 
@@ -163,15 +163,14 @@ def encode_axis(rpm_pts: List[int], tps_pts: List[float]) -> bytes:
 # ── Decode helpers ────────────────────────────────────────────────────────────
 
 def decode_map(payload: bytes) -> List[List[int]]:
-    """Unpack 120-byte map payload to 12×5 list of uint16 pulse widths."""
-    if len(payload) < RPM_BINS * TPS_BINS * 2:
+    """Unpack 60-byte map payload to 12×5 list of uint8 values. 1 unit = 100 µs."""
+    if len(payload) < RPM_BINS * TPS_BINS:
         raise ValueError(f"Map payload too short: {len(payload)}")
     result = []
     for r in range(RPM_BINS):
         row = []
         for t in range(TPS_BINS):
-            idx = (r * TPS_BINS + t) * 2
-            row.append(struct.unpack_from('>H', payload, idx)[0])
+            row.append(payload[r * TPS_BINS + t])
         result.append(row)
     return result
 

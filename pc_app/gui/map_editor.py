@@ -26,7 +26,7 @@ COLOR_EDIT    = "#E8F4FF"   # light blue when editing
 
 class MapEditor(ttk.LabelFrame):
     def __init__(self, parent, ecu_state: ECUState, get_worker: Callable):
-        super().__init__(parent, text="Injection Map  (pulse width µs)", padding=6)
+        super().__init__(parent, text="Injection Map  (1 unit = 0.1 ms)", padding=6)
         self._state = ecu_state
         self._get_worker = get_worker
         self._cursor: Optional[Tuple[int, int]] = None
@@ -164,7 +164,7 @@ class MapEditor(ttk.LabelFrame):
         raw = var.get().strip()
         try:
             val = int(raw)
-            if not (0 <= val <= 65535):
+            if not (0 <= val <= 255):
                 raise ValueError
             self._state.inj_map[row][col] = val
             var.set(str(val))

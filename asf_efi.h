@@ -20,7 +20,7 @@ extern uint8_t           pump_pwm;           // last analogWrite value to pump (
 extern uint16_t rpm_axis[RPM_BINS];
 extern uint8_t  tps_axis[TPS_BINS];   // 0–100 percent breakpoints
 
-extern uint16_t inj_map[RPM_BINS][TPS_BINS];
+extern uint8_t  inj_map[RPM_BINS][TPS_BINS];
 extern uint16_t iat_correction[IAT_CORR_BINS];  // Q8.8: 256 = 1.0 (no correction)
 extern uint16_t et_correction[ET_CORR_BINS];    // Q8.8: 256 = 1.0 (no correction)
 

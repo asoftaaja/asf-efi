@@ -4,8 +4,8 @@
 #include "pump.h"
 #include "eeprom_map.h"
 
-// Maximum payload size: CMD_WRITE_MAP = 1(cmd) + 120(data) = 121 bytes
-// CMD_WRITE_AXIS = 1(cmd) + 34(data) = 35 bytes
+// Maximum payload size: CMD_WRITE_MAP = 1(cmd) + 60(data) = 61 bytes
+// CMD_WRITE_AXIS = 1(cmd) + 29(data) = 30 bytes
 #define RX_BUF_SIZE 130
 
 // Receive state machine
@@ -89,12 +89,10 @@ static void dispatchCommand(const uint8_t *buf, uint8_t len)
         break;
 
     case CMD_WRITE_MAP:
-        if (plen != RPM_BINS * TPS_BINS * 2) { sendNACK(); return; }
+        if (plen != RPM_BINS * TPS_BINS) { sendNACK(); return; }
         for (uint8_t r = 0; r < RPM_BINS; r++)
-            for (uint8_t t = 0; t < TPS_BINS; t++) {
-                uint8_t idx = (r * TPS_BINS + t) * 2;
-                inj_map[r][t] = ((uint16_t)payload[idx] << 8) | payload[idx + 1];
-            }
+            for (uint8_t t = 0; t < TPS_BINS; t++)
+                inj_map[r][t] = payload[r * TPS_BINS + t];
         saveInjectionMap();
         sendACK();
         break;
@@ -158,13 +156,10 @@ static void dispatchCommand(const uint8_t *buf, uint8_t len)
         break;
 
     case CMD_READ_MAP: {
-        uint8_t buf[RPM_BINS * TPS_BINS * 2];
+        uint8_t buf[RPM_BINS * TPS_BINS];
         for (uint8_t r = 0; r < RPM_BINS; r++)
-            for (uint8_t t = 0; t < TPS_BINS; t++) {
-                uint8_t idx = (r * TPS_BINS + t) * 2;
-                buf[idx]     = inj_map[r][t] >> 8;
-                buf[idx + 1] = inj_map[r][t] & 0xFF;
-            }
+            for (uint8_t t = 0; t < TPS_BINS; t++)
+                buf[r * TPS_BINS + t] = inj_map[r][t];
         sendPacket(CMD_READ_MAP, buf, sizeof(buf));
         break;
     }

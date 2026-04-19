@@ -31,7 +31,7 @@ static float eepromReadFloat(int addr)
 static void writeDefaults()
 {
     // Injection map: all zeros (no injection until user programs the map)
-    for (int i = 0; i < RPM_BINS * TPS_BINS * 2; i++)
+    for (int i = 0; i < RPM_BINS * TPS_BINS; i++)
         EEPROM.write(EEPROM_ADDR_INJ_MAP + i, 0);
 
     // PID: reasonable starting values for fuel pressure control
@@ -80,11 +80,8 @@ void loadFromEEPROM()
 
     // Injection map
     for (uint8_t r = 0; r < RPM_BINS; r++)
-        for (uint8_t t = 0; t < TPS_BINS; t++) {
-            int addr = EEPROM_ADDR_INJ_MAP + (r * TPS_BINS + t) * 2;
-            inj_map[r][t] = ((uint16_t)EEPROM.read(addr) << 8)
-                           |  (uint16_t)EEPROM.read(addr + 1);
-        }
+        for (uint8_t t = 0; t < TPS_BINS; t++)
+            inj_map[r][t] = EEPROM.read(EEPROM_ADDR_INJ_MAP + r * TPS_BINS + t);
 
     // PID
     pid_kp = eepromReadFloat(EEPROM_ADDR_PID);
@@ -155,11 +152,8 @@ void loadFromEEPROM()
 void saveInjectionMap()
 {
     for (uint8_t r = 0; r < RPM_BINS; r++)
-        for (uint8_t t = 0; t < TPS_BINS; t++) {
-            int addr = EEPROM_ADDR_INJ_MAP + (r * TPS_BINS + t) * 2;
-            EEPROM.update(addr,     inj_map[r][t] >> 8);
-            EEPROM.update(addr + 1, inj_map[r][t] & 0xFF);
-        }
+        for (uint8_t t = 0; t < TPS_BINS; t++)
+            EEPROM.update(EEPROM_ADDR_INJ_MAP + r * TPS_BINS + t, inj_map[r][t]);
 }
 
 void savePIDParams()
