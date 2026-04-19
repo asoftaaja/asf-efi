@@ -130,5 +130,14 @@
     0.75,
     1.0
   ],
-  "pump_mode_always_on": false
+  "pump_mode_always_on": false,
+  "accel_pump": {
+    "threshold_pct_per_s": 50,
+    "extra_us": 500,
+    "duration_ms": 300
+  },
+  "alarms": {
+    "et_threshold": 110.0,
+    "vbat_threshold": 11.5
+  }
 }

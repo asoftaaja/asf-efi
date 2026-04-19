@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 from typing import Optional
 
-from protocol import PIDParams, PressureConfig, RPM_BREAKPOINTS, TPS_BREAKPOINTS
+from protocol import PIDParams, PressureConfig, AccelPumpParams, RPM_BREAKPOINTS, TPS_BREAKPOINTS
 
 TUNEFILES_DIR = Path("tunefiles")
 _LAST_FILE = TUNEFILES_DIR / ".last"
@@ -30,6 +30,15 @@ def save_tunefile(path: "Path | str", state) -> None:
         "rpm_axis": state.rpm_axis,
         "tps_axis": state.tps_axis,
         "pump_mode_always_on": state.pump_mode_always_on,
+        "accel_pump": {
+            "threshold_pct_per_s": state.accel_pump.threshold_pct_per_s,
+            "extra_us": state.accel_pump.extra_us,
+            "duration_ms": state.accel_pump.duration_ms,
+        },
+        "alarms": {
+            "et_threshold": state.et_alarm_threshold,
+            "vbat_threshold": state.vbat_alarm_threshold,
+        },
     }
     path.write_text(json.dumps(data, indent=2))
     _set_last(path)
@@ -52,6 +61,15 @@ def load_tunefile(path: "Path | str", state) -> None:
     state.rpm_axis = [int(v) for v in data.get("rpm_axis", RPM_BREAKPOINTS)]
     state.tps_axis = [float(v) for v in data.get("tps_axis", TPS_BREAKPOINTS)]
     state.pump_mode_always_on = bool(data.get("pump_mode_always_on", False))
+    ap = data.get("accel_pump", {})
+    state.accel_pump = AccelPumpParams(
+        threshold_pct_per_s=int(ap.get("threshold_pct_per_s", 50)),
+        extra_us=int(ap.get("extra_us", 500)),
+        duration_ms=int(ap.get("duration_ms", 300)),
+    )
+    alarms = data.get("alarms", {})
+    state.et_alarm_threshold   = float(alarms.get("et_threshold",   110.0))
+    state.vbat_alarm_threshold = float(alarms.get("vbat_threshold",  11.5))
     _set_last(path)
 
 

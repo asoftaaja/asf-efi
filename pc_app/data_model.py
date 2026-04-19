@@ -6,7 +6,7 @@ The GUI thread reads; the serial worker thread writes.
 import threading
 from typing import List, Optional
 from protocol import (
-    SensorData, PIDParams, PressureConfig,
+    SensorData, PIDParams, PressureConfig, AccelPumpParams,
     RPM_BINS, TPS_BINS, IAT_BINS, ET_BINS,
     RPM_BREAKPOINTS, TPS_BREAKPOINTS,
 )
@@ -25,6 +25,7 @@ class ECUState:
         self.inj_map = [[0] * TPS_BINS for _ in range(RPM_BINS)]  # type: List[List[int]]
         self.pid = PIDParams()
         self.pressure = PressureConfig()
+        self.accel_pump = AccelPumpParams()
         self.pump_mode_always_on: bool = False
         self.iat_corr = [1.0] * IAT_BINS   # type: List[float]
         self.et_corr  = [1.0] * ET_BINS    # type: List[float]
@@ -38,6 +39,10 @@ class ECUState:
         self.device_tps_axis_buf = None  # type: Optional[List[float]]
         self.device_iat_corr_buf = None  # type: Optional[List[float]]
         self.device_et_corr_buf  = None  # type: Optional[List[float]]
+
+        # ── Alarm thresholds (local to PC app, not sent to device) ───────────
+        self.et_alarm_threshold: float = 70.0    # °C — alert if ET exceeds this
+        self.vbat_alarm_threshold: float = 11.5   # V  — alert if VBAT drops below this
 
         # ── Connection state ─────────────────────────────────────────────────
         self.connected = False

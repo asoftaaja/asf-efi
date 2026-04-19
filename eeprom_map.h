@@ -39,6 +39,14 @@
 #define EEPROM_ADDR_TPS_CAL           195  // 4 bytes: closed uint16 + open uint16 (big-endian)
 #define EEPROM_ADDR_TPS_CAL_MAGIC     199  // 1 byte: magic when TPS cal section init'd
 #define EEPROM_TPS_CAL_MAGIC_VALUE   0xAD
+//  200         2   accel_threshold_pct_per_s (uint16 BE)
+//  202         2   accel_extra_us (uint16 BE)
+//  204         2   accel_duration_ms (uint16 BE)
+//  206         1   Accel pump magic — 0xAE
+//  207 bytes total
+#define EEPROM_ADDR_ACCEL_PUMP        200
+#define EEPROM_ADDR_ACCEL_PUMP_MAGIC  206
+#define EEPROM_ACCEL_PUMP_MAGIC_VALUE 0xAE
 
 void loadFromEEPROM();       // load all sections; writes defaults if uninitialised
 void saveInjectionMap();
@@ -49,3 +57,4 @@ void saveETCorrection();
 void saveAxisBreakpoints();
 void savePumpMode();
 void saveTpsCalibration();
+void saveAccelPump();

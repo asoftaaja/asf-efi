@@ -31,6 +31,8 @@ CMD_READ_PUMP_CONFIG  = 0x0F
 CMD_READ_CORRECTIONS  = 0x10
 CMD_TPS_CAL_CLOSED    = 0x11  # no payload; ECU captures live ADC as 0% position
 CMD_TPS_CAL_OPEN      = 0x12  # no payload; ECU captures live ADC as 100% position
+CMD_WRITE_ACCEL_PUMP  = 0x15  # payload: 6 bytes (threshold, extra_us, duration_ms as uint16 BE)
+CMD_READ_ACCEL_PUMP   = 0x16  # no payload; response: 6 bytes same layout
 
 RPM_BINS = 12
 TPS_BINS = 5
@@ -48,7 +50,7 @@ TPS_BREAKPOINTS = [0, 25, 50, 75, 100]   # percent integers (0–100)
 class SensorData:
     def __init__(self, rpm=0, tps=0.0, fps_bar=0.0, iat_degc=0.0,
                  et_degc=0.0, pump_active=False, bat_v=0.0,
-                 pump_duty=0, inj_duty=0.0):
+                 pump_duty=0, inj_duty=0.0, accel_active=False):
         self.rpm = rpm
         self.tps = tps             # 0.0 – 1.0
         self.fps_bar = fps_bar
@@ -58,6 +60,7 @@ class SensorData:
         self.bat_v = bat_v         # battery voltage in V
         self.pump_duty = pump_duty  # raw PWM 0–255
         self.inj_duty = inj_duty    # injector duty cycle in percent (0.0–100.0)
+        self.accel_active = accel_active  # True while accel pump enrichment is active
 
 
 class PIDParams:
@@ -72,6 +75,13 @@ class PressureConfig:
         self.low_bar = low_bar
         self.high_bar = high_bar
         self.threshold_rpm = threshold_rpm
+
+
+class AccelPumpParams:
+    def __init__(self, threshold_pct_per_s=50, extra_us=500, duration_ms=300):
+        self.threshold_pct_per_s = threshold_pct_per_s  # TPS rate to trigger (%/sec)
+        self.extra_us = extra_us                         # Peak extra pulse width (µs)
+        self.duration_ms = duration_ms                   # Enrichment decay duration (ms)
 
 
 # ── CRC ──────────────────────────────────────────────────────────────────────
@@ -199,12 +209,25 @@ def decode_pump_config(payload: bytes):
             pump_mode_always_on)
 
 
+def encode_accel_pump(params: 'AccelPumpParams') -> bytes:
+    """Pack threshold, extra_us, duration_ms as 3 × uint16 big-endian (6 bytes)."""
+    return struct.pack('>HHH', params.threshold_pct_per_s, params.extra_us, params.duration_ms)
+
+
+def decode_accel_pump(payload: bytes) -> 'AccelPumpParams':
+    """Unpack 6-byte accel pump payload to AccelPumpParams."""
+    if len(payload) < 6:
+        raise ValueError(f"Accel pump payload too short: {len(payload)}")
+    t, e, d = struct.unpack_from('>HHH', payload, 0)
+    return AccelPumpParams(threshold_pct_per_s=t, extra_us=e, duration_ms=d)
+
+
 def decode_sensor_data(payload: bytes) -> SensorData:
-    """Unpack 13-byte sensor response payload."""
-    if len(payload) < 13:
+    """Unpack 14-byte sensor response payload."""
+    if len(payload) < 14:
         raise ValueError(f"Sensor payload too short: {len(payload)}")
-    rpm, tps_raw, fps_raw, iat_raw, et_raw, pump_active, bat_raw, pump_pwm, inj_duty_pm = \
-        struct.unpack('>HBBhhBBBH', payload[:13])
+    rpm, tps_raw, fps_raw, iat_raw, et_raw, pump_active, bat_raw, pump_pwm, inj_duty_pm, accel_raw = \
+        struct.unpack('>HBBhhBBBHB', payload[:14])
     return SensorData(
         rpm=rpm,
         tps=tps_raw / 100.0,
@@ -215,6 +238,7 @@ def decode_sensor_data(payload: bytes) -> SensorData:
         bat_v=bat_raw / 16.0,
         pump_duty=pump_pwm,
         inj_duty=inj_duty_pm / 10.0,
+        accel_active=bool(accel_raw),
     )
 
 

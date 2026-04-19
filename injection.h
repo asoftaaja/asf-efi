@@ -14,6 +14,9 @@
 #define RPM_BINS  12
 #define TPS_BINS   5
 
+// Maximum safe injection pulse (µs)
+#define MAX_PULSE_US 25000U
+
 // RPM threshold: below = sync injection (1 pulse/rev), above = 60 Hz fixed
 #define RPM_SYNC_THRESHOLD 1500
 

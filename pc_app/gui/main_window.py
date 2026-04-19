@@ -11,7 +11,9 @@ import tune_io
 from protocol import (
     CMD_WRITE_MAP, CMD_WRITE_AXIS, CMD_WRITE_PID,
     CMD_WRITE_PRESSURE, CMD_WRITE_IAT_CORR, CMD_WRITE_ET_CORR,
+    CMD_WRITE_ACCEL_PUMP,
     encode_map, encode_axis, encode_pid, encode_pressure, encode_corrections,
+    encode_accel_pump,
 )
 from gui.connection_panel  import ConnectionPanel
 from gui.sensor_panel      import SensorPanel
@@ -21,6 +23,8 @@ from gui.pressure_panel    import PressurePanel
 from gui.correction_panel  import CorrectionPanel
 from gui.pump_panel        import PumpPanel
 from gui.tune_file_panel   import TuneFilePanel
+from gui.accel_pump_panel  import AccelPumpPanel
+from gui.alarm_panel       import AlarmPanel
 
 
 class MainWindow(tk.Tk):
@@ -106,19 +110,32 @@ class MainWindow(tk.Tk):
 
         # ── Tab 2: PID / Pressure / Pump ─────────────────────────────────────
         tune_tab = ttk.Frame(self._notebook)
-        self._notebook.add(tune_tab, text="  PID & Pressure  ")
+        self._notebook.add(tune_tab, text="  ECU Settings  ")
 
         tune_inner = ttk.Frame(tune_tab)
         tune_inner.pack(padx=8, pady=8, fill="x")
 
-        self._pid_panel = PIDPanel(tune_inner, self._state, self._get_worker)
-        self._pid_panel.grid(row=0, column=0, padx=8, pady=4, sticky="n")
+        # PID + Pressure grouped in a single container panel
+        engine_panel = ttk.LabelFrame(tune_inner, text="Fuel Pressure Control", padding=4)
+        engine_panel.grid(row=0, column=0, padx=8, pady=4, sticky="n")
 
-        self._pressure_panel = PressurePanel(tune_inner, self._state, self._get_worker)
-        self._pressure_panel.grid(row=0, column=1, padx=8, pady=4, sticky="n")
+        self._pid_panel = PIDPanel(engine_panel, self._state, self._get_worker)
+        self._pid_panel.grid(row=0, column=0, padx=6, pady=4, sticky="n")
+
+        ttk.Separator(engine_panel, orient="vertical").grid(
+            row=0, column=1, sticky="ns", pady=4)
+
+        self._pressure_panel = PressurePanel(engine_panel, self._state, self._get_worker)
+        self._pressure_panel.grid(row=0, column=2, padx=6, pady=4, sticky="n")
 
         self._pump_panel = PumpPanel(tune_inner, self._get_worker)
-        self._pump_panel.grid(row=0, column=2, padx=8, pady=4, sticky="n")
+        self._pump_panel.grid(row=0, column=1, padx=8, pady=4, sticky="n")
+
+        self._accel_pump_panel = AccelPumpPanel(tune_inner, self._state, self._get_worker)
+        self._accel_pump_panel.grid(row=1, column=0, padx=8, pady=4, sticky="nw")
+
+        self._alarm_panel = AlarmPanel(tune_inner, self._state)
+        self._alarm_panel.grid(row=1, column=1, padx=8, pady=4, sticky="nw")
 
         # Wire sensor panel → pump panel for button state sync
         self._sensor_panel.set_pump_panel(self._pump_panel)
@@ -136,7 +153,9 @@ class MainWindow(tk.Tk):
             self._pid_panel,
             self._pressure_panel,
             self._pump_panel,
+            self._accel_pump_panel,
             self._corr_panel,
+            self._alarm_panel,
             self._write_all_btn,
         ]
 
@@ -171,6 +190,8 @@ class MainWindow(tk.Tk):
         self._pid_panel.flush_to_state()
         self._pressure_panel.flush_to_state()
         self._corr_panel.flush_to_state()
+        self._accel_pump_panel.flush_to_state()
+        self._alarm_panel.flush_to_state()
 
     def _refresh_all(self) -> None:
         self._map_editor.refresh_from_state()
@@ -178,6 +199,8 @@ class MainWindow(tk.Tk):
         self._pid_panel.refresh_from_state()
         self._pressure_panel.refresh_from_state()
         self._corr_panel.refresh_from_state()
+        self._accel_pump_panel.refresh_from_state()
+        self._alarm_panel.refresh_from_state()
 
     # ── Worker accessor (passed as callable to panels) ───────────────────────
 
@@ -214,6 +237,7 @@ class MainWindow(tk.Tk):
             self._pid_panel.refresh_from_state()
             self._pressure_panel.refresh_from_state()
             self._corr_panel.refresh_from_state()
+            self._accel_pump_panel.refresh_from_state()
 
     def _on_disconnect(self) -> None:
         self._worker = None
@@ -269,8 +293,9 @@ class MainWindow(tk.Tk):
         worker.send_command(CMD_WRITE_AXIS,     encode_axis(s.rpm_axis, s.tps_axis))
         worker.send_command(CMD_WRITE_PID,      encode_pid(s.pid))
         worker.send_command(CMD_WRITE_PRESSURE, encode_pressure(s.pressure))
-        worker.send_command(CMD_WRITE_IAT_CORR, encode_corrections(s.iat_corr))
-        worker.send_command(CMD_WRITE_ET_CORR,  encode_corrections(s.et_corr))
+        worker.send_command(CMD_WRITE_IAT_CORR,   encode_corrections(s.iat_corr))
+        worker.send_command(CMD_WRITE_ET_CORR,    encode_corrections(s.et_corr))
+        worker.send_command(CMD_WRITE_ACCEL_PUMP, encode_accel_pump(s.accel_pump))
         # Update device buffers to reflect what was just written, so future
         # tune file loads don't falsely flag a mismatch.
         s.device_map_buf      = copy.deepcopy(s.inj_map)
