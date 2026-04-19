@@ -25,6 +25,7 @@ class SensorPanel(ttk.LabelFrame):
 
         self._alarms: set = set()
         self._flash_on: bool = False
+        self._alarm_default_fg: dict = {}
 
         FONT = ("Courier", 28, "bold")
 
@@ -52,6 +53,7 @@ class SensorPanel(ttk.LabelFrame):
                 lbl = tk.Label(self, textvariable=var, font=FONT, anchor="w")
                 alarm_key = _alarm_key_for_var[attr]
                 setattr(self, f"_{alarm_key}_label", lbl)
+                self._alarm_default_fg[alarm_key] = lbl.cget("foreground")
             else:
                 lbl = ttk.Label(self, textvariable=var, font=FONT, anchor="w")
             lbl.grid(row=row, column=1, sticky="w", padx=(0, 6), pady=1)
@@ -81,10 +83,11 @@ class SensorPanel(ttk.LabelFrame):
         self._flash_on = not self._flash_on
         for key, (lbl_attr, _) in _ALARM_FIELDS.items():
             lbl = getattr(self, lbl_attr)
+            default_fg = self._alarm_default_fg.get(key, "black")
             if key in self._alarms:
-                lbl.config(foreground="red" if self._flash_on else "")
+                lbl.config(foreground="red" if self._flash_on else default_fg)
             else:
-                lbl.config(foreground="")
+                lbl.config(foreground=default_fg)
         self._flash_schedule()
 
     def _refresh(self) -> None:
