@@ -75,7 +75,7 @@ def _load_log(path: str) -> dict:
         for col, val in row.items():
             data[col].append(val)
 
-    timestamps = [datetime.fromisoformat(t) for t in data["timestamp"]]
+    timestamps = [datetime.strptime(t, "%Y-%m-%dT%H:%M:%S.%f") for t in data["timestamp"]]
     t0 = timestamps[0]
     data["_elapsed"] = [(t - t0).total_seconds() for t in timestamps]
 
@@ -136,7 +136,7 @@ class LogViewer(tk.Tk):
 
         # Value bar — packed at the bottom so it stays below the canvas
         self._value_bar = tk.Frame(self, background="#1e1e1e", pady=4)
-        self._value_vars: list[tk.StringVar] = []
+        self._value_vars = []  # type: list
         for i, (col, label, fmt) in enumerate(_VALUE_BAR_FIELDS):
             if i > 0:
                 tk.Label(self._value_bar, text="│", background="#1e1e1e",
