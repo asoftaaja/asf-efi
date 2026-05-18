@@ -14,7 +14,11 @@ from tkinter import filedialog, messagebox, ttk
 
 import matplotlib
 matplotlib.use("TkAgg")
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+try:
+    from matplotlib.backends.backend_tkagg import NavigationToolbar2Tk
+except ImportError:
+    from matplotlib.backends.backend_tkagg import NavigationToolbar2TkAgg as NavigationToolbar2Tk
 from matplotlib.figure import Figure
 from datetime import datetime
 
@@ -106,7 +110,7 @@ class LogViewer(tk.Tk):
         self.geometry("1100x820")
         self.resizable(True, True)
 
-        self._data: dict | None = None
+        self._data = None  # type: dict
         self._axes: list = []
         self._cursor_lines: list = []
         self._motion_cid = None
