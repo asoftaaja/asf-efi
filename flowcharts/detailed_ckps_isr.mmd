@@ -2,14 +2,14 @@ flowchart TD
     A([CKPS Falling Edge]) --> B["Read ICR1 (Timer1 input capture register)\nRead ovf_count (overflows since last capture)\nRace fix: if TOV1 flag set and capture < 0x8000, add 1 to ovf\nReset ovf_count = 0"]
     B --> C["period_ticks = ovf × 65536 + (capture − prev_capture)\nprev_capture = capture\n(signed subtraction handles 16-bit wrap correctly)"]
     C --> D["rpm = 120 000 000 / period_ticks\n(= 60 s × 2 000 000 ticks/s ÷ period)\nrpm clamped to 20 000 max"]
-    D --> E[last_pulse_ms = millis()\n(resets timeout detector)]
+    D --> E["last_pulse_ms = millis()\n(resets timeout detector)"]
     E --> F{pulse_count < 2?}
     F -- Yes --> G[pulse_count++]
     G --> H{pulse_count == 2?}
     H -- Yes --> I[pump_active = true]
     H -- No --> J([Return — skip injection on startup pulses])
     I --> J
-    F -- No --> K{rpm < RPM_SYNC_THRESHOLD\n(1500 RPM)?}
+    F -- No --> K{"rpm < RPM_SYNC_THRESHOLD\n(1500 RPM)?"}
     K -- "Yes (synchronous mode)" --> L[injection_trigger = true\nmain loop fires injector and clears flag]
     K -- "No (60 Hz mode)" --> M[No action here —\n60 Hz scheduler in main loop handles injection]
     L --> N([Return])

@@ -4,6 +4,7 @@ import tkinter as tk
 from tkinter import ttk
 
 from data_model import ECUState
+from data_logger import DataLogger
 
 REFRESH_MS = 200
 FLASH_MS   = 500   # flash period half-cycle (2 Hz total)
@@ -17,11 +18,13 @@ _ALARM_FIELDS = {
 
 
 class SensorPanel(ttk.LabelFrame):
-    def __init__(self, parent, ecu_state: ECUState):
+    def __init__(self, parent, ecu_state: ECUState, log_dir: str = "logs"):
         super().__init__(parent, text="Sensors", padding=6)
         self._state = ecu_state
         self._map_editor = None   # set by MainWindow after construction
         self._pump_panel = None   # set by MainWindow after construction
+        self._log_dir = log_dir
+        self._logger = DataLogger()
 
         self._alarms: set = set()
         self._flash_on: bool = False
@@ -64,6 +67,17 @@ class SensorPanel(ttk.LabelFrame):
         self._accel_label = tk.Label(self, text="---", font=FONT, anchor="w", foreground="gray")
         self._accel_label.grid(row=accel_row, column=1, sticky="w", padx=(0, 6), pady=1)
 
+        # Logging controls
+        log_row = accel_row + 1
+        ttk.Separator(self, orient="horizontal").grid(
+            row=log_row, column=0, columnspan=2, sticky="ew", pady=(8, 4))
+        self._log_btn = ttk.Button(self, text="Start Log", command=self._toggle_log,
+                                   state="disabled")
+        self._log_btn.grid(row=log_row + 1, column=0, columnspan=2, pady=(0, 2))
+        self._rec_label = tk.Label(self, text="", foreground="red",
+                                   font=("Courier", 11, "bold"))
+        self._rec_label.grid(row=log_row + 2, column=0, columnspan=2)
+
         self._schedule()
         self._flash_schedule()
 
@@ -72,6 +86,28 @@ class SensorPanel(ttk.LabelFrame):
 
     def set_pump_panel(self, panel) -> None:
         self._pump_panel = panel
+
+    def set_logging_enabled(self, enabled: bool) -> None:
+        """Enable or disable the log button. Stops any active log when disabling."""
+        if not enabled:
+            self.stop_log()
+        self._log_btn.configure(state="normal" if enabled else "disabled")
+
+    def stop_log(self) -> None:
+        """Stop the active log session if one is running."""
+        if self._logger.is_active:
+            self._logger.stop()
+            self._log_btn.configure(text="Start Log")
+            self._rec_label.configure(text="")
+
+    def _toggle_log(self) -> None:
+        """Start or stop the log session."""
+        if self._logger.is_active:
+            self.stop_log()
+        else:
+            path = self._logger.start(self._log_dir)
+            self._log_btn.configure(text="Stop Log")
+            self._rec_label.configure(text="● RECORDING")
 
     def _schedule(self) -> None:
         self.after(REFRESH_MS, self._refresh)
@@ -110,6 +146,9 @@ class SensorPanel(ttk.LabelFrame):
                     self._accel_label.config(text="---", foreground="gray")
 
                 self._update_alarms(data)
+
+                if self._logger.is_active:
+                    self._logger.log(data)
 
                 if self._map_editor:
                     self._map_editor.update_cursor(data.rpm, data.tps)

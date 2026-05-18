@@ -1,6 +1,7 @@
 """Root Tk window — wires all panels together."""
 
 import copy
+import os
 import tkinter as tk
 from tkinter import ttk
 from typing import Optional
@@ -88,7 +89,8 @@ class MainWindow(tk.Tk):
         self._body_frame = ttk.Frame(self)
         self._body_frame.pack(fill="both", expand=True, padx=8, pady=4)
 
-        self._sensor_panel = SensorPanel(self._body_frame, self._state)
+        _log_dir = os.path.join(os.path.dirname(__file__), "..", "logs")
+        self._sensor_panel = SensorPanel(self._body_frame, self._state, log_dir=_log_dir)
         self._sensor_panel.pack(side="right", fill="y", padx=(4, 0))
 
         ttk.Separator(self._body_frame, orient="vertical").pack(
@@ -212,6 +214,7 @@ class MainWindow(tk.Tk):
     def _on_connect(self, worker: SerialWorker) -> None:
         self._worker = worker
         self._set_panels_enabled(True)
+        self._sensor_panel.set_logging_enabled(True)
         self._state.map_fresh.clear()
         self._state.axis_fresh.clear()
         self._state.config_fresh.clear()
@@ -242,6 +245,7 @@ class MainWindow(tk.Tk):
     def _on_disconnect(self) -> None:
         self._worker = None
         self._set_panels_enabled(False)
+        self._sensor_panel.set_logging_enabled(False)
         self._dismiss_sync_warning()
 
     # ── Sync warning helpers ──────────────────────────────────────────────────

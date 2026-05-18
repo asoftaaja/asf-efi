@@ -33,6 +33,7 @@ build/
 
 # Logs
 *.log
+pc_app/logs/
 
 # Runtime files
 pc_app/tunefiles/.last

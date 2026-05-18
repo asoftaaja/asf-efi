@@ -3,10 +3,10 @@ flowchart TD
 
     B --> C{CKPS timeout\n> 500 ms?}
 
-    C -- Yes --> D[shutoffInjector()\ninjector D4 = LOW]
-    D --> E[resetCKPS()\npulse_count = 0]
+    C -- Yes --> D["shutoffInjector()\ninjector D4 = LOW"]
+    D --> E["resetCKPS()\npulse_count = 0"]
     E --> F{pump_manual?}
-    F -- No --> G[disablePump()\nPWM = 0, integral reset\npump_active = false]
+    F -- No --> G["disablePump()\nPWM = 0, integral reset\npump_active = false"]
     F -- Yes --> H[Keep pump running]
     G --> LED
     H --> LED
@@ -29,7 +29,7 @@ flowchart TD
     HZ60 -- No --> LED
     HZ60 -- Yes --> CALC60["calculatePulseWidth(rpm, tps, iat, et)\nbase = map[rpm][tps] × 100 µs\n× IAT correction (Q8.8)\n× ET correction (Q8.8)"]
     CALC60 --> ACCEL60["accel = getAccelPumpExtra()\npw = min(base + accel, 25000 µs)"]
-    ACCEL60 --> FIRE60[fireInjector(pw)\nD4 HIGH, schedule COMPA close]
+    ACCEL60 --> FIRE60["fireInjector(pw)\nD4 HIGH, schedule COMPA close"]
     FIRE60 --> LED
 
     RPMCHECK -- "No (sync mode)" --> TRIG{injection_trigger\nset by CKPS ISR?}
@@ -37,7 +37,7 @@ flowchart TD
     TRIG -- Yes --> CLRTRIG[injection_trigger = false]
     CLRTRIG --> CALCSYNC["calculatePulseWidth(rpm, tps, iat, et)"]
     CALCSYNC --> ACCELSYNC["pw = min(base + accel_pump, 25000 µs)"]
-    ACCELSYNC --> FIRESYNC[fireInjector(pw)]
+    ACCELSYNC --> FIRESYNC["fireInjector(pw)"]
     FIRESYNC --> LED
 
     LED["Update LEDs:\nGreen — solid=idle, blink 5 Hz=pump running/priming\nRed — blink 5 Hz while injector fired recently"] --> SER
