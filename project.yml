@@ -1,0 +1,109 @@
+---
+# Ceedling 1.0.x project configuration for ASF-EFI firmware tests.
+# Source is Arduino C++ (ATmega328P); tests run on the host with g++ and
+# lightweight mock headers that replace Arduino and AVR runtime dependencies.
+
+:project:
+  :which_ceedling: gem
+  :ceedling_version: '?'
+  :use_exceptions: FALSE
+  :use_test_preprocessor: :none   # simple include scanner -- no preprocessor needed
+  :use_deep_preprocessor: :none
+  :use_backtrace: :none
+  :use_decorators: :auto
+  :build_root: build
+  :test_file_prefix: test_
+  :default_tasks:
+    - test:all
+  :test_threads: 4
+  :compile_threads: 4
+  :release_build: FALSE
+
+:mixins:
+  :enabled: []
+  :load_paths: []
+
+:test_build:
+  :use_assembly: FALSE
+
+:release_build:
+  :output: asf_efi.out
+  :use_assembly: FALSE
+  :artifacts: []
+
+:plugins:
+  :load_paths: []
+  :enabled:
+    - report_tests_pretty_stdout
+
+# ---------------------------------------------------------------------------
+# Paths
+# ---------------------------------------------------------------------------
+:paths:
+  :test:
+    - test
+  :source:
+    - .               # root .cpp files (firmware modules)
+  :support:
+    - test/support    # always compiled + included: mock headers and globals
+  :include:
+    - .
+    - test/support
+
+# ---------------------------------------------------------------------------
+# File extensions -- source and test files are both .cpp
+# ---------------------------------------------------------------------------
+:extension:
+  :source: .cpp
+  :header: .h
+
+# ---------------------------------------------------------------------------
+# Preprocessor defines
+# ---------------------------------------------------------------------------
+:defines:
+  :test:
+    - UNIT_TEST       # guards that can gate out hardware-only code if needed
+
+# ---------------------------------------------------------------------------
+# Compiler / linker flags
+#
+# -x c++ : force all translation units (including generated .c runners and
+#          Unity's unity.c) to be compiled as C++.  This is necessary so
+#          that the auto-generated Ceedling runner can call the test
+#          functions with matching (C++) name mangling.  Unity 2.6+ wraps
+#          its implementation in  #ifdef __cplusplus extern "C" { ... }
+#          so it remains link-compatible.
+# ---------------------------------------------------------------------------
+:flags:
+  :test:
+    :compile:
+      :*:
+        - -std=c++11
+        - -x c++
+        - -Wno-write-strings
+        - -Wno-unused-function
+
+# ---------------------------------------------------------------------------
+# Toolchain -- use the host g++ for both compile and link
+# ---------------------------------------------------------------------------
+:tools:
+  :test_compiler:
+    :executable: g++
+    :name: 'g++ compiler'
+    :optional: FALSE
+  :test_linker:
+    :executable: g++
+    :name: 'g++ linker'
+    :optional: FALSE
+
+# ---------------------------------------------------------------------------
+# Unity configuration
+# ---------------------------------------------------------------------------
+:unity:
+  :defines:
+    - UNITY_INCLUDE_DOUBLE
+
+:cmock:
+  :mock_prefix: mock_
+  :when_no_prototypes: :warn
+  :enforce_strict_ordering: TRUE

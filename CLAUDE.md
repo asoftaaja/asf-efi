@@ -32,4 +32,5 @@ Detailed implementation notes for specific features are kept in the `docs/` fold
 | [docs/sensors.md](docs/sensors.md) | Sensor reading — TPS linear + calibration, FPS linear, IAT/ET NTC thermistor lookup, battery voltage divider |
 | [docs/serial_protocol.md](docs/serial_protocol.md) | Serial protocol — packet frame format, CRC-8/SMBUS, all command IDs with payload layouts, sensor data packet structure |
 | [docs/eeprom_map.md](docs/eeprom_map.md) | EEPROM layout — full address map (122 bytes used), per-section magic byte strategy, save function reference |
+| [docs/testing.md](docs/testing.md) | Test framework — Ceedling/Unity setup, mock layer architecture, ISR testability, per-module test coverage |
 | [pc_app/docs/implementation_summary.md](pc_app/docs/implementation_summary.md) | PC application — architecture, threading model, GUI layout, module responsibilities, connection behaviour |
