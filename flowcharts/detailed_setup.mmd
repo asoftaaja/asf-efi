@@ -1,10 +1,13 @@
 flowchart TD
-    A([Power On / Reset]) --> B["Configure pins:\nA0=TPS, A1=FPS, A2=IAT, A3=ET\nD3=pump PWM, D4=injector\nD8=ICP, D12=green LED, D13=red LED"]
-    B --> C[Init Timer1 for CKPS input capture on D8\nfalling edge trigger]
-    C --> D[Init Timer2 for pump PWM on D3]
-    D --> E[Init Serial port]
-    E --> F[Load injection map 12x5 from EEPROM]
-    F --> G[Load PID coefficients Kp/Ki/Kd from EEPROM]
-    G --> H[Load target pressure table from EEPROM]
-    H --> I[Light green LED solid → system initialized]
-    I --> J([Enter Main Loop])
+    A([Power On / Reset]) --> B["loadFromEEPROM() — check each magic byte;\nwrite defaults if section uninitialised"]
+    B --> B1["Main section (magic 0xB1):\nInjection map 10×4 (uint8, 100 µs/count)\nPID coefficients Kp / Ki / Kd (float32)\nPressure table: low bar, high bar, threshold RPM\nIAT correction 5 × Q8.8\nET correction 5 × Q8.8"]
+    B1 --> B2["Axis section (magic 0xB2):\nRPM axis 10 × uint16\nTPS axis 4 × uint8"]
+    B2 --> B3["Pump mode section (magic 0xA9):\n0 = PID (default), 1 = always-on"]
+    B3 --> B4["TPS cal section (magic 0xAD):\nclosed ADC count, open ADC count"]
+    B4 --> B5["Accel pump section (magic 0xAE):\nthreshold %/s, extra µs, duration ms"]
+    B5 --> C["initCKPS():\nTimer1 normal mode, clk/8, falling-edge ICP\nenable input-capture and overflow interrupts"]
+    C --> D["initInjection():\nD4 = OUTPUT, injector OFF\nD13 = OUTPUT, red LED OFF"]
+    D --> E["initPump():\nD3 = OUTPUT, PWM = 0\nD12 = OUTPUT, green LED OFF"]
+    E --> F["initComms():\nSerial.begin(115200)"]
+    F --> G["Green LED D12 = HIGH\n(system initialised)"]
+    G --> H([Enter Main Loop])

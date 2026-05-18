@@ -1,28 +1,34 @@
 flowchart LR
     subgraph INTERRUPT ["⚡ CKPS Interrupt (parallel)"]
         direction TD
-        I1([Crankshaft pulse received]) --> I2[Measure time between pulses]
+        I1([Crankshaft pulse received]) --> I2[Measure time between pulses\ncount overflows for low RPM]
         I2 --> I3[Update RPM value]
+        I3 --> I4{2 pulses seen?}
+        I4 -- Yes --> I5[Enable pump]
+        I4 -- No --> I6([Return])
+        I5 --> I7{rpm < 1500?}
+        I7 -- "Yes (sync mode)" --> I8[Set injection_trigger flag]
+        I7 -- "No (60 Hz mode)" --> I6
+        I8 --> I6
     end
 
     subgraph LOOP ["🔁 Main Loop"]
         direction TD
-        S[/"Read Sensors:\nThrottle TPS · Fuel pressure FPS\nAir temp IAT · Engine temp ET"\]
-        S --> P1[Compare actual pressure\nvs. target pressure]
-        P1 --> P2[Adjust pump speed\nvia PWM signal]
-        P2 --> J1[Look up injection time\nfrom RPM × Throttle map]
-        J1 --> J2[Apply temperature corrections]
-        J2 --> J3[Calculate injector closing time]
-        J3 --> J4[Open injector]
-        J4 --> C1[Receive commands from PC:\nupdate map / settings]
-        C1 --> C2[Send live data to PC:\nRPM, pressures, temperatures]
-        C2 --> S
+        S[/"Read Sensors:\nThrottle TPS · Fuel pressure FPS\nAir temp IAT · Engine temp ET · Battery"\]
+        S --> TO{CKPS timeout?}
+        TO -- Yes --> SHUT[Shut off injector\nDisable pump]
+        TO -- No --> P1[Fuel pump control:\nPID or always-on PWM]
+        P1 --> J1["Injection:\nSync (injection_trigger) or 60 Hz scheduler\nMap lookup + temp corrections + accel pump\nOpen injector via Timer1"]
+        J1 --> LED[Update indicator LEDs]
+        LED --> C1[Serial comms:\nReceive commands · Send sensor data]
+        C1 --> S
+        SHUT --> LED
     end
 
-    subgraph TIMER ["⏱ Timer Interrupt (parallel)"]
+    subgraph TIMER ["⏱ Timer Interrupts (parallel)"]
         direction TD
-        T1([Timer fires at closing time]) --> T2[Close injector]
+        T1([Timer1 COMPA fires]) --> T2[Close injector]
     end
 
-    INTERRUPT -. RPM .-> LOOP
-    LOOP -. sets closing time .-> TIMER
+    INTERRUPT -. "RPM, injection_trigger,\npump_active" .-> LOOP
+    LOOP -. sets OCR1A closing time .-> TIMER

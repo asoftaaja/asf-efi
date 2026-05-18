@@ -1,27 +1,52 @@
 flowchart TD
-    A([Main Loop Start]) --> B["Read ADC sensors:\nTPS → A0\nFPS → A1\nIAT → A2\nET  → A3"]
+    A([Main Loop Start]) --> B["Read sensors:\nTPS → A0 (0–100 %)\nTPS rate → updateAccelPump()\nFPS → A1 (1/16 bar units)\nIAT → A2 (°C, NTC lookup)\nET  → A3 (°C, NTC lookup)\nBAT → A7 (1/16 V units)"]
 
-    B --> C{CKPS timeout\nexceeded?}
-    C -- Yes --> D[Disable injector\nD4 = LOW]
-    D --> E[Disable pump\nD3 PWM = 0]
-    E --> F[pump_active = false\nrpm = 0]
-    F --> G[Green LED solid\nRed LED off]
-    C -- No --> H{pump_active?}
+    B --> C{CKPS timeout\n> 500 ms?}
 
-    H -- Yes --> I[Compute target pressure\nfrom RPM pressure table]
-    I --> J["PID: error = target − FPS_bar\nupdate integral & derivative\nnew_pwm = clamp(Kp·e + Ki·∫e + Kd·de/dt)"]
-    J --> K[Write new_pwm to pump D3]
-    H -- No --> L[Pump PWM = 0]
+    C -- Yes --> D[shutoffInjector()\ninjector D4 = LOW]
+    D --> E[resetCKPS()\npulse_count = 0]
+    E --> F{pump_manual?}
+    F -- No --> G[disablePump()\nPWM = 0, integral reset\npump_active = false]
+    F -- Yes --> H[Keep pump running]
+    G --> LED
+    H --> LED
 
-    K --> M[Update LEDs]
-    L --> M
-    G --> M
+    C -- No --> PUMP{pump_active?}
 
-    M --> N{Serial bytes\navailable?}
-    N -- Yes --> O[Read and assemble packet\ncheck CRC]
-    O --> P{CRC OK?}
-    P -- Yes --> Q["Dispatch command:\n• READ_SENSORS → send data packet\n• WRITE_MAP → update map + EEPROM\n• WRITE_PID → update PID + EEPROM\n• WRITE_PRESSURE → update table + EEPROM\n• PUMP_PRIME → run pump briefly"]
-    P -- No --> R[Send NACK / discard]
-    Q --> A
-    R --> A
-    N -- No --> A
+    PUMP -- Yes --> PMODE{pump_mode_always_on?}
+    PMODE -- "Yes (always-on)" --> PFULL[pump_pwm = 255\nanalogWrite D3 = 255]
+    PMODE -- "No (PID)" --> PPID["target = low_bar or high_bar\n(based on rpm vs threshold)\nerror = target − fps_sixteenth_bar\noutput = (kp·error·1000 + ki·integral) / 16000\nanti-windup: skip integral update if saturated\npump_pwm = clamp(output, 0, 255)\nanalogWrite D3 = pump_pwm"]
+    PFULL --> INJ
+    PPID --> INJ
+    PUMP -- No --> POFF[pump PWM = 0]
+    POFF --> INJ
+
+    INJ{pump_active\nand engine running?}
+    INJ -- No --> LED
+    INJ -- Yes --> RPMCHECK{rpm ≥ 1500?}
+
+    RPMCHECK -- "Yes (60 Hz mode)" --> HZ60{"16 ms elapsed\nsince last shot?"}
+    HZ60 -- No --> LED
+    HZ60 -- Yes --> CALC60["calculatePulseWidth(rpm, tps, iat, et)\nbase = map[rpm][tps] × 100 µs\n× IAT correction (Q8.8)\n× ET correction (Q8.8)"]
+    CALC60 --> ACCEL60["accel = getAccelPumpExtra()\npw = min(base + accel, 25000 µs)"]
+    ACCEL60 --> FIRE60[fireInjector(pw)\nD4 HIGH, schedule COMPA close]
+    FIRE60 --> LED
+
+    RPMCHECK -- "No (sync mode)" --> TRIG{injection_trigger\nset by CKPS ISR?}
+    TRIG -- No --> LED
+    TRIG -- Yes --> CLRTRIG[injection_trigger = false]
+    CLRTRIG --> CALCSYNC["calculatePulseWidth(rpm, tps, iat, et)"]
+    CALCSYNC --> ACCELSYNC["pw = min(base + accel_pump, 25000 µs)"]
+    ACCELSYNC --> FIRESYNC[fireInjector(pw)]
+    FIRESYNC --> LED
+
+    LED["Update LEDs:\nGreen — solid=idle, blink 5 Hz=pump running/priming\nRed — blink 5 Hz while injector fired recently"] --> SER
+
+    SER{Serial bytes\navailable?}
+    SER -- No --> A
+    SER -- Yes --> PKT["Assemble packet:\n0xAA · LEN · CMD · DATA · CRC8"]
+    PKT --> CRC{CRC-8/SMBUS\nvalid?}
+    CRC -- No --> NACK[Send NACK]
+    NACK --> A
+    CRC -- Yes --> DISPATCH["Dispatch command:\n0x01 READ_SENSORS → 14-byte sensor packet\n0x02 WRITE_MAP → update + EEPROM\n0x03 WRITE_PID → update + EEPROM\n0x04 WRITE_PRESSURE → update + EEPROM\n0x05 PUMP_PRIME → run pump 2 s\n0x0B WRITE_AXIS → update + EEPROM\n0x0D PUMP_SET → manual on/off\n0x0E PUMP_MODE → PID / always-on\n0x11/0x12 TPS_CAL → calibrate + EEPROM\n0x15 WRITE_ACCEL_PUMP → update + EEPROM\n… → ACK"]
+    DISPATCH --> A

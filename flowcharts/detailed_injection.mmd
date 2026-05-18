@@ -1,13 +1,18 @@
 flowchart TD
-    A([Injection Trigger]) --> B["Look up base_pw\nfrom map 12×5\nusing rpm_index × tps_index"]
-    B --> C["Apply IAT coefficient\niat_pw = base_pw × IAT_correction"]
-    C --> D["Apply ET coefficient\nfinal_pw = iat_pw × ET_correction"]
-    D --> E{final_pw > 0?}
-    E -- No --> F([Return, no injection])
-    E -- Yes --> G["D4 = HIGH — injector ON\nD13 = HIGH — red LED ON\nStart timer = final_pw µs"]
-    G --> H([Return to caller])
+    A([Injection Trigger\nsync or 60 Hz]) --> B["calculatePulseWidth(rpm, tps, iat, et)\nLook up base value from map 10×4\n(bilinear interpolation, units = 100 µs)"]
+    B --> C["Apply IAT correction (Q8.8 multiply)\npw = base_pw × iat_correction[iat] >> 8"]
+    C --> D["Apply ET correction (Q8.8 multiply)\npw = pw × et_correction[et] >> 8\nClamp to MAX_PULSE_US (25 000 µs)"]
+    D --> E["Add accelerator pump extra:\naccel = getAccelPumpExtra()\npw = min(pw + accel, 25 000 µs)"]
+    E --> F{pw > 0?}
+    F -- No --> G([Return — no injection])
+    F -- Yes --> H["fireInjector(pw):\nlast_pulse_width_us = pw\nticks = pw × 2  (0.5 µs/tick)\nINJECTOR_ON() — D4 HIGH\nlast_injection_ms = millis()\nOCR1A = TCNT1 + ticks\nenable OCIE1A (compare-A interrupt)"]
+    H --> I([Return to main loop])
 
-    subgraph ISR ["Injector Timer ISR"]
-        I(["Timer fires after final_pw µs"]) --> J["D4 = LOW — injector OFF\nD13 = LOW — red LED OFF"]
-        J --> K([Return])
+    subgraph ISR ["Timer1 COMPA ISR (fires after pw µs)"]
+        J(["TIMER1_COMPA_vect"]) --> K["Disable OCIE1A\nINJECTOR_OFF() — D4 LOW"]
+        K --> L([Return])
+    end
+
+    subgraph LED_NOTE ["LED note"]
+        M["Red LED is NOT controlled here.\nupdateLEDs() in main loop blinks it\nwhenever millis() − last_injection_ms < 500 ms"]
     end
