@@ -6,15 +6,29 @@ The PC application is a Python/tkinter desktop GUI for real-time monitoring and 
 
 ---
 
+## Feature Documentation
+
+Detailed implementation notes for specific features are kept in this `docs/` folder.
+
+| File | Topic |
+|---|---|
+| [connection.md](connection.md) | Connection lifecycle, SerialWorker startup sequence, error handling, sync warning |
+| [serial_protocol.md](serial_protocol.md) | Packet format, CRC, all command IDs with payload layouts, data classes |
+| [injection_map.md](injection_map.md) | Map editor grid, live cursor, axis breakpoint editor, read/write flow |
+| [tune_file.md](tune_file.md) | JSON tune file format, load/save, auto-load, sync warning integration |
+| [data_logging.md](data_logging.md) | CSV data logger, file format, log viewer app |
+
+---
+
 ## Quick Start
 
 ```bash
 cd pc_app
-pip install pyserial
+pip install -r requirements.txt
 python3 main.py
 ```
 
-Requires Python 3.10+ and pyserial. tkinter is included with standard Python distributions.
+Requires Python 3.6+ and the packages in `requirements.txt` (`pyserial`, `matplotlib`). tkinter is included with standard Python distributions.
 
 ---
 
