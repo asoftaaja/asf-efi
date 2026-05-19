@@ -18,9 +18,9 @@
 #define MAX_PULSE_US 25000U
 
 // RPM threshold: below = sync injection (1 pulse/rev), above = 60 Hz fixed
-#define RPM_SYNC_THRESHOLD 1500
+#define RPM_SYNC_THRESHOLD 3000
 
-// millis() timestamp of the last injection firing (used for LED blink logic)
+// millis() timestamp of the last injection firing
 extern volatile uint32_t last_injection_ms;
 
 // Last injector pulse width in µs (used for duty cycle reporting)

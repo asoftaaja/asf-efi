@@ -34,35 +34,30 @@ uint16_t tps_adc_open   = 730;  // ADC count at fully open throttle (loaded from
 
 // ---- LED blink state --------------------------------------------------------
 
-// Both LEDs blink at 5 Hz (toggle every 100 ms) when their condition is active
-#define LED_BLINK_PERIOD_MS 100
+// Red LED blinks at 10 Hz (toggle every 50 ms) when injection is active
+#define RED_BLINK_PERIOD_MS 50
 
-static uint32_t led_blink_ms  = 0;
-static bool     led_blink_state = false;
+static uint32_t red_blink_ms    = 0;
+static bool     red_blink_state = false;
 
 // Injector is considered "active" for LED purposes if it has fired recently
-#define INJ_ACTIVE_TIMEOUT_MS 500
+#define INJ_ACTIVE_TIMEOUT_MS 100
 
 static void updateLEDs()
 {
     uint32_t now = millis();
 
-    if (now - led_blink_ms >= LED_BLINK_PERIOD_MS) {
-        led_blink_ms    = now;
-        led_blink_state = !led_blink_state;
+    if (now - red_blink_ms >= RED_BLINK_PERIOD_MS) {
+        red_blink_ms    = now;
+        red_blink_state = !red_blink_state;
     }
 
-    // Green LED: solid when idle, blinking when pump running or priming
-    bool pump_running = pump_active || isPriming();
-    if (pump_running) {
-        digitalWrite(PIN_LED_GREEN, led_blink_state ? HIGH : LOW);
-    } else {
-        digitalWrite(PIN_LED_GREEN, HIGH);   // solid on — system alive
-    }
+    // Green LED: solid on — system alive
+    digitalWrite(PIN_LED_GREEN, HIGH);
 
-    // Red LED: blinks at 5 Hz while injector has been firing recently
+    // Red LED: blinks at 10 Hz while injector has been firing recently
     bool inj_active = (now - last_injection_ms) < INJ_ACTIVE_TIMEOUT_MS;
-    digitalWrite(PIN_LED_RED, (inj_active && led_blink_state) ? HIGH : LOW);
+    digitalWrite(PIN_LED_RED, (inj_active && red_blink_state) ? HIGH : LOW);
 }
 
 // ---- 60 Hz injection scheduler (high-RPM mode) ------------------------------

@@ -2,7 +2,7 @@
 
 ## Overview
 
-Injection pulse width is determined by a 10×4 (RPM × TPS) lookup map with bilinear interpolation, then multiplied by two temperature correction coefficients (IAT and ET). The injector is opened by asserting D4 high and closed by a Timer1 compare-A ISR that fires after the calculated pulse width. Two scheduling modes exist: synchronised (one shot per CKPS pulse, below 1500 RPM) and fixed-frequency (60 Hz, at or above 1500 RPM).
+Injection pulse width is determined by a 10×4 (RPM × TPS) lookup map with bilinear interpolation, then multiplied by two temperature correction coefficients (IAT and ET). The injector is opened by asserting D4 high and closed by a Timer1 compare-A ISR that fires after the calculated pulse width. Two scheduling modes exist: synchronised (one shot per CKPS pulse, below `RPM_SYNC_THRESHOLD`) and fixed-frequency (60 Hz, at or above `RPM_SYNC_THRESHOLD`).
 
 ---
 
@@ -77,7 +77,7 @@ if (pw > MAX_PULSE_US) pw = MAX_PULSE_US;
 
 | Mode | Condition | Trigger |
 |---|---|---|
-| Synchronised | `rpm < RPM_SYNC_THRESHOLD` (1500 RPM) | `injection_trigger` flag set by CKPS ISR; cleared by main loop |
+| Synchronised | `rpm < RPM_SYNC_THRESHOLD` | `injection_trigger` flag set by CKPS ISR; cleared by main loop |
 | Fixed 60 Hz | `rpm >= RPM_SYNC_THRESHOLD` | `handle60HzInjection()` in main loop, period = 16 ms |
 
 Both paths add the accelerator pump extra pulse width before calling `fireInjector()`. See [accel_pump.md](accel_pump.md) for details.

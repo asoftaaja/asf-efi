@@ -168,11 +168,11 @@ void test_pump_stays_active_after_startup(void)
 /* injection_trigger flag                                              */
 /* ================================================================== */
 
-/* At low RPM (below RPM_SYNC_THRESHOLD = 1500) the ISR sets the flag. */
+/* At low RPM (below RPM_SYNC_THRESHOLD = 3000) the ISR sets the flag. */
 void test_injection_trigger_set_below_threshold(void)
 {
     advance_past_startup();   // prev_capture = 0
-    /* 90 000 ticks -> 120 000 000 / 90 000 = 1 333 RPM < 1 500 */
+    /* 90 000 ticks -> 120 000 000 / 90 000 = 1 333 RPM < 3 000 */
     TIMER1_OVF_vect();
     ICR1              = 24464;   // 90 000 - 65 536
     injection_trigger = false;
@@ -184,20 +184,19 @@ void test_injection_trigger_set_below_threshold(void)
 void test_injection_trigger_not_set_above_threshold(void)
 {
     advance_past_startup();
-    /* 20 000 ticks -> 6 000 RPM > 1 500 */
+    /* 20 000 ticks -> 6 000 RPM > 3 000 */
     ICR1              = 20000;
     injection_trigger = false;
     TIMER1_CAPT_vect();
     TEST_ASSERT_FALSE(injection_trigger);
 }
 
-/* Exactly at the threshold (1 500 RPM): period = 80 000 ticks.
- * 80 000 = 1 overflow + 14 464 ticks. rpm = 1 500 which is NOT < 1500 -> no trigger. */
+/* Exactly at the threshold (3 000 RPM): period = 40 000 ticks.
+ * 40 000 < 65 536, so no overflow. rpm = 3 000 which is NOT < 3000 -> no trigger. */
 void test_injection_trigger_not_set_at_exactly_threshold(void)
 {
     advance_past_startup();
-    TIMER1_OVF_vect();
-    ICR1              = 14464;   // 80 000 - 65 536
+    ICR1              = 40000;   // 120 000 000 / 3 000 = 40 000 ticks
     injection_trigger = false;
     TIMER1_CAPT_vect();
     TEST_ASSERT_FALSE(injection_trigger);

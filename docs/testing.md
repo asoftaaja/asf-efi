@@ -92,9 +92,9 @@ Covers `ISR(TIMER1_CAPT_vect)` and `ISR(TIMER1_OVF_vect)` from `ckps.cpp`.
 | No false race (TOV1 clear) | Overflow not double-counted |
 | RPM capped at 20 000 | Implausibly short period rejected |
 | Pump gated after 2 pulses | `pump_active` false after 1 pulse, true after 2 |
-| injection_trigger set below 1500 RPM | `~1333 RPM` -> trigger set |
-| injection_trigger not set above 1500 RPM | `6000 RPM` -> trigger clear |
-| injection_trigger not set at exactly 1500 RPM | Boundary: trigger clear |
+| injection_trigger set below RPM_SYNC_THRESHOLD | `~1333 RPM` -> trigger set |
+| injection_trigger not set above RPM_SYNC_THRESHOLD | `6000 RPM` -> trigger clear |
+| injection_trigger not set at exactly RPM_SYNC_THRESHOLD | Boundary: trigger clear |
 | injection_trigger not set during startup | First two pulses are discarded |
 | Timeout true/false/exact boundary | `hasRPMTimeout()` at 100/99/100 ms |
 | resetCKPS | Clears trigger, re-arms pump gate |

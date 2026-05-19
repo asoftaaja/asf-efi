@@ -49,8 +49,8 @@ Each iteration of `loop()` does the following in order:
 
 The injection mode switches based on RPM:
 
-- **Below 1500 RPM** — synchronised to CKPS. The CKPS ISR sets an `injection_trigger` flag on each pulse; the main loop fires the injector once per revolution.
-- **Above 1500 RPM** — fixed 60 Hz (one injection every ~16 ms), independent of crank position.
+- **Below `RPM_SYNC_THRESHOLD`** — synchronised to CKPS. The CKPS ISR sets an `injection_trigger` flag on each pulse; the main loop fires the injector once per revolution.
+- **At or above `RPM_SYNC_THRESHOLD`** — fixed 60 Hz (one injection every ~16 ms), independent of crank position.
 
 The injector is opened by setting D4 high. It is closed by a **Timer1 output-compare ISR** (OCR1A), which fires at a precise hardware-scheduled time. This means the pulse *duration* is always accurate regardless of main-loop latency.
 

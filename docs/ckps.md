@@ -59,7 +59,7 @@ if (pulse_count < 2) {
 
 ### Injection Trigger
 
-After the first two pulses, the ISR sets `injection_trigger = true` whenever `rpm < RPM_SYNC_THRESHOLD` (1500 RPM). The main loop clears the flag after processing it. Above the threshold, the ISR does nothing with injection — the 60 Hz scheduler in the main loop takes over.
+After the first two pulses, the ISR sets `injection_trigger = true` whenever `rpm < RPM_SYNC_THRESHOLD`. The main loop clears the flag after processing it. Above the threshold, the ISR does nothing with injection — the 60 Hz scheduler in the main loop takes over.
 
 ### Timeout Detection
 
@@ -73,4 +73,4 @@ After the first two pulses, the ISR sets `injection_trigger = true` whenever `rp
 |---|---|---|
 | `PIN_CKPS` | 8 | Arduino pin D8 = ATmega PB0 = Timer1 ICP1 |
 | `CKPS_TIMEOUT_MS` | 500 | ms of silence before engine is considered stopped |
-| `RPM_SYNC_THRESHOLD` | 1500 | RPM below which injection is synchronised to CKPS |
+| `RPM_SYNC_THRESHOLD` | see `injection.h` | RPM below which injection is synchronised to CKPS |
