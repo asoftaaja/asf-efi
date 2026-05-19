@@ -7,6 +7,7 @@ Usage:
 
 import bisect
 import csv
+import json
 import os
 import sys
 import tkinter as tk
@@ -24,6 +25,20 @@ from datetime import datetime
 
 _HEADER_ROWS = 5
 _INITIAL_DIR = os.path.join(os.path.dirname(__file__), "logs")
+_CONFIG_PATH = os.path.join(os.path.dirname(__file__), "log_viewer_config.json")
+
+def _load_config() -> dict:
+    """Load log_viewer_config.json, returning defaults if missing or malformed."""
+    defaults = {"font_size": 18}
+    try:
+        with open(_CONFIG_PATH, "r", encoding="utf-8") as fh:
+            cfg = json.load(fh)
+        defaults.update(cfg)
+    except (OSError, json.JSONDecodeError):
+        pass
+    return defaults
+
+_CONFIG = _load_config()
 
 # (subplot_title, [(col, label, color)], ylabel, step_plot)
 _SUBPLOT_DEFS = [
@@ -39,20 +54,24 @@ _SUBPLOT_DEFS = [
                            ("accel_active",  "Accel pump", "#17becf")],            "Active",  True),
 ]
 
-# Fields shown in the value bar: (column, display label, format string)
-_VALUE_BAR_FIELDS = [
+# Fields shown in the value bar split across two rows.
+# Each row is a list of (column, display label, format string).
+_VALUE_BAR_ROW1 = [
     ("_elapsed",      "t",       "{:.2f} s"),
     ("rpm",           "RPM",     "{:.0f}"),
     ("tps_pct",       "TPS",     "{:.1f} %"),
     ("fps_bar",       "FPS",     "{:.3f} bar"),
     ("iat_degc",      "IAT",     "{:.1f} °C"),
     ("et_degc",       "ET",      "{:.1f} °C"),
+]
+_VALUE_BAR_ROW2 = [
     ("pump_active",   "PUMP",    lambda v: "ON" if v else "OFF"),
     ("bat_v",         "VBAT",    "{:.2f} V"),
     ("pump_duty_pct", "P.DUTY",  "{:.1f} %"),
     ("inj_duty_pct",  "I.DUTY",  "{:.1f} %"),
     ("accel_active",  "ACCEL",   lambda v: "ON" if v else "OFF"),
 ]
+_VALUE_BAR_FIELDS = _VALUE_BAR_ROW1 + _VALUE_BAR_ROW2
 
 
 def _load_log(path: str) -> dict:
@@ -135,19 +154,24 @@ class LogViewer(tk.Tk):
         ttk.Separator(self, orient="horizontal").pack(fill="x")
 
         # Value bar — packed at the bottom so it stays below the canvas
+        fs = _CONFIG["font_size"]
+        fs_label = max(fs - 4, 8)
         self._value_bar = tk.Frame(self, background="#1e1e1e", pady=4)
         self._value_vars = []  # type: list
-        for i, (col, label, fmt) in enumerate(_VALUE_BAR_FIELDS):
-            if i > 0:
-                tk.Label(self._value_bar, text="│", background="#1e1e1e",
-                         foreground="#555555", font=("Courier", 18)).pack(side="left", padx=2)
-            lbl = tk.Label(self._value_bar, text=f"{label}:", background="#1e1e1e",
-                           foreground="#888888", font=("Courier", 13))
-            lbl.pack(side="left", padx=(6, 1))
-            var = tk.StringVar(value="---")
-            self._value_vars.append(var)
-            tk.Label(self._value_bar, textvariable=var, background="#1e1e1e",
-                     foreground="#e0e0e0", font=("Courier", 18, "bold")).pack(side="left", padx=(0, 4))
+
+        for row_fields in (_VALUE_BAR_ROW1, _VALUE_BAR_ROW2):
+            row_frame = tk.Frame(self._value_bar, background="#1e1e1e")
+            row_frame.pack(fill="x", pady=1)
+            for i, (col, label, fmt) in enumerate(row_fields):
+                if i > 0:
+                    tk.Label(row_frame, text="│", background="#1e1e1e",
+                             foreground="#555555", font=("Courier", fs)).pack(side="left", padx=2)
+                tk.Label(row_frame, text=f"{label}:", background="#1e1e1e",
+                         foreground="#888888", font=("Courier", fs_label)).pack(side="left", padx=(6, 1))
+                var = tk.StringVar(value="---")
+                self._value_vars.append(var)
+                tk.Label(row_frame, textvariable=var, background="#1e1e1e",
+                         foreground="#e0e0e0", font=("Courier", fs, "bold")).pack(side="left", padx=(0, 4))
 
         # Placeholder shown before a file is opened
         self._placeholder = ttk.Label(
