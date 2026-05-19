@@ -1,3 +1,13 @@
 {
-    "font_size": 22
+    "font_size": 22,
+    "line_width": 1.5,
+    "visible_plots": {
+        "RPM": true,
+        "Throttle Position": true,
+        "Fuel Pressure": true,
+        "Temperature": true,
+        "Battery Voltage": true,
+        "Duty Cycles": true,
+        "Active Flags": false
+    }
 }

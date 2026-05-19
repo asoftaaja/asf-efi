@@ -24,6 +24,7 @@ from matplotlib.figure import Figure
 from datetime import datetime
 
 _HEADER_ROWS = 5
+_CURSOR_DEBOUNCE_MS = 80  # ms of cursor stillness before redraw + value bar update
 _INITIAL_DIR = os.path.join(os.path.dirname(__file__), "logs")
 _CONFIG_PATH = os.path.join(os.path.dirname(__file__), "log_viewer_config.json")
 
@@ -134,6 +135,8 @@ class LogViewer(tk.Tk):
         self._cursor_lines: list = []
         self._motion_cid = None
         self._leave_cid = None
+        self._cursor_after_id = None
+        self._pending_cursor_x = None
 
         self._build_ui()
 
@@ -153,7 +156,15 @@ class LogViewer(tk.Tk):
 
         ttk.Separator(self, orient="horizontal").pack(fill="x")
 
-        # Value bar — packed at the bottom so it stays below the canvas
+        # Plot visibility checkboxes — built early so _plot_vars exists before any file opens
+        vp = _CONFIG.get("visible_plots", {})
+        self._plot_vars: dict = {}
+        for title, _, _, _ in _SUBPLOT_DEFS:
+            visible = vp.get(title, True) if isinstance(vp, dict) else True
+            self._plot_vars[title] = tk.BooleanVar(value=bool(visible))
+
+        # Value bar — built now but packed only when a file is opened (must be packed
+        # as side="bottom" before the middle frame to stay below the canvas area).
         fs = _CONFIG["font_size"]
         fs_label = max(fs - 4, 8)
         self._value_bar = tk.Frame(self, background="#1e1e1e", pady=4)
@@ -183,8 +194,27 @@ class LogViewer(tk.Tk):
         )
         self._placeholder.pack(expand=True)
 
-        # Canvas frame (hidden until a file is loaded)
-        self._canvas_frame = ttk.Frame(self)
+        # Middle frame: sidebar on the left, canvas on the right.
+        # Packed only when a file is opened (after value_bar so pack order is correct).
+        self._middle_frame = ttk.Frame(self)
+
+        sidebar = ttk.Frame(self._middle_frame, width=155)
+        sidebar.pack(side="left", fill="y", padx=(4, 0), pady=4)
+        sidebar.pack_propagate(False)
+        ttk.Label(sidebar, text="Plots", font=("TkDefaultFont", 9, "bold")).pack(
+            anchor="w", padx=6, pady=(4, 2))
+        ttk.Separator(sidebar, orient="horizontal").pack(fill="x", padx=4, pady=(0, 4))
+        for title, _, _, _ in _SUBPLOT_DEFS:
+            ttk.Checkbutton(
+                sidebar, text=title,
+                variable=self._plot_vars[title],
+                command=self._on_plot_toggle,
+            ).pack(anchor="w", padx=6, pady=2)
+
+        ttk.Separator(self._middle_frame, orient="vertical").pack(side="left", fill="y")
+
+        self._canvas_frame = ttk.Frame(self._middle_frame)
+        self._canvas_frame.pack(side="left", fill="both", expand=True)
         self._fig = Figure(figsize=(11, 8))
         self._canvas = FigureCanvasTkAgg(self._fig, master=self._canvas_frame)
         self._nav = NavigationToolbar2Tk(self._canvas, self._canvas_frame)
@@ -219,7 +249,7 @@ class LogViewer(tk.Tk):
 
         self._placeholder.pack_forget()
         self._value_bar.pack(fill="x", side="bottom")
-        self._canvas_frame.pack(fill="both", expand=True)
+        self._middle_frame.pack(fill="both", expand=True)
 
         self._build_subplots()
         self._setup_cursor()
@@ -229,13 +259,23 @@ class LogViewer(tk.Tk):
     # ── Plot construction ─────────────────────────────────────────────────────
 
     def _build_subplots(self) -> None:
-        """Rebuild all subplots from current data."""
+        """Rebuild visible subplots from current data."""
         self._fig.clear()
         self._axes = []
         t = self._data["_elapsed"]
-        n = len(_SUBPLOT_DEFS)
 
-        for i, (_, series, ylabel, step) in enumerate(_SUBPLOT_DEFS):
+        visible = [
+            (title, series, ylabel, step)
+            for title, series, ylabel, step in _SUBPLOT_DEFS
+            if self._plot_vars[title].get()
+        ]
+        if not visible:
+            self._canvas.draw_idle()
+            return
+
+        n = len(visible)
+        first_ax = None
+        for i, (_, series, ylabel, step) in enumerate(visible):
             if i == 0:
                 ax = self._fig.add_subplot(n, 1, 1)
                 first_ax = ax
@@ -248,9 +288,9 @@ class LogViewer(tk.Tk):
                     continue
                 if step:
                     ax.step(t, self._data[col], where="post", label=label,
-                            color=color, linewidth=1.2)
+                            color=color, linewidth=_CONFIG.get("line_width", 1.2))
                 else:
-                    ax.plot(t, self._data[col], label=label, color=color, linewidth=1.2)
+                    ax.plot(t, self._data[col], label=label, color=color, linewidth=_CONFIG.get("line_width", 1.2))
 
             ax.set_ylabel(ylabel, fontsize=8)
             ax.tick_params(labelsize=7)
@@ -265,6 +305,15 @@ class LogViewer(tk.Tk):
 
         self._axes[-1].set_xlabel("Elapsed time (s)", fontsize=8)
         self._fig.tight_layout(pad=0.4, h_pad=0.3)
+
+    def _on_plot_toggle(self) -> None:
+        """Rebuild plots when a sidebar checkbox is toggled."""
+        if self._data is None:
+            return
+        self._build_subplots()
+        self._setup_cursor()
+        self._reset_value_bar()
+        self._canvas.draw()
 
     # ── Cursor ────────────────────────────────────────────────────────────────
 
@@ -289,19 +338,36 @@ class LogViewer(tk.Tk):
 
     def _on_mouse_move(self, event) -> None:
         if event.inaxes is None or self._data is None:
+            self._cancel_pending_cursor()
             self._set_cursor_visible(False)
+            self._canvas.draw_idle()
             return
 
-        x = event.xdata
+        self._pending_cursor_x = event.xdata
+        self._cancel_pending_cursor()
+        self._cursor_after_id = self.after(_CURSOR_DEBOUNCE_MS, self._flush_cursor)
+
+    def _flush_cursor(self) -> None:
+        """Deferred cursor update — runs after the cursor has been still for the debounce period."""
+        self._cursor_after_id = None
+        x = self._pending_cursor_x
+        if x is None or self._data is None:
+            return
         for line in self._cursor_lines:
             line.set_xdata([x, x])
             line.set_visible(True)
-
         idx = _nearest_index(self._data["_elapsed"], x)
         self._update_value_bar(idx)
         self._canvas.draw_idle()
 
+    def _cancel_pending_cursor(self) -> None:
+        if self._cursor_after_id is not None:
+            self.after_cancel(self._cursor_after_id)
+            self._cursor_after_id = None
+
     def _on_figure_leave(self, event) -> None:
+        self._cancel_pending_cursor()
+        self._pending_cursor_x = None
         self._set_cursor_visible(False)
         self._reset_value_bar()
         self._canvas.draw_idle()
