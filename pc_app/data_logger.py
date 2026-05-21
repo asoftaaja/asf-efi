@@ -10,7 +10,7 @@ from protocol import SensorData
 _HEADER_ROWS = 5
 _COLUMNS = [
     "timestamp", "rpm", "tps_pct", "fps_bar", "iat_degc", "et_degc",
-    "pump_active", "bat_v", "pump_duty_pct", "inj_duty_pct", "accel_active",
+    "pump_active", "bat_v", "pump_duty_pct", "inj_duty_pct", "inj_open_ms", "accel_active",
 ]
 
 
@@ -62,6 +62,7 @@ class DataLogger:
             "bat_v":        f"{data.bat_v:.2f}",
             "pump_duty_pct": f"{data.pump_duty / 255 * 100:.2f}",
             "inj_duty_pct": f"{data.inj_duty:.2f}",
+            "inj_open_ms":  f"{data.inj_open_us / 1000:.1f}",
             "accel_active": int(data.accel_active),
         })
         self._file.flush()

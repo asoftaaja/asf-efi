@@ -51,6 +51,7 @@ _SUBPLOT_DEFS = [
     ("Battery Voltage",   [("bat_v",         "VBAT",       "#8c564b")],            "V",       False),
     ("Duty Cycles",       [("inj_duty_pct",  "Injector",   "#e377c2"),
                            ("pump_duty_pct", "Pump",       "#7f7f7f")],            "%",       False),
+    ("Injector Pulse",    [("inj_open_ms",   "Pulse",      "#e377c2")],            "ms",      False),
     ("Active Flags",      [("pump_active",   "Pump",       "#bcbd22"),
                            ("accel_active",  "Accel pump", "#17becf")],            "Active",  True),
 ]
@@ -70,6 +71,7 @@ _VALUE_BAR_ROW2 = [
     ("bat_v",         "VBAT",    "{:.2f} V"),
     ("pump_duty_pct", "P.DUTY",  "{:.1f} %"),
     ("inj_duty_pct",  "I.DUTY",  "{:.1f} %"),
+    ("inj_open_ms",   "INJ",     "{:.1f} ms"),
     ("accel_active",  "ACCEL",   lambda v: "ON" if v else "OFF"),
 ]
 _VALUE_BAR_FIELDS = _VALUE_BAR_ROW1 + _VALUE_BAR_ROW2
@@ -101,7 +103,7 @@ def _load_log(path: str) -> dict:
 
     numeric = [
         "rpm", "tps_pct", "fps_bar", "iat_degc", "et_degc",
-        "pump_active", "bat_v", "pump_duty_pct", "inj_duty_pct", "accel_active",
+        "pump_active", "bat_v", "pump_duty_pct", "inj_duty_pct", "inj_open_ms", "accel_active",
     ]
     for col in numeric:
         if col in data:
@@ -227,7 +229,7 @@ class LogViewer(tk.Tk):
         path = filedialog.askopenfilename(
             title="Open ASF EFI Log",
             initialdir=_INITIAL_DIR if os.path.isdir(_INITIAL_DIR) else os.path.expanduser("~"),
-            filetypes=[("CSV log files", "asf_efi_datalog_*.csv"), ("All CSV files", "*.csv")],
+            filetypes=[("CSV log files", "*.csv"), ("All files", "*")],
         )
         if path:
             self._open_file(path)

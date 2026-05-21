@@ -38,9 +38,9 @@ The receive state machine in `comms.cpp` (`processSerial()`) is a four-state FSM
 | ID | Name | Direction | Payload |
 |---|---|---|---|
 | `0x01` | `CMD_READ_SENSORS` | PC → ECU (request) | 0 |
-| `0x01` | `CMD_READ_SENSORS` | ECU → PC (response) | 14 bytes — see layout below |
+| `0x01` | `CMD_READ_SENSORS` | ECU → PC (response) | 16 bytes — see layout below |
 
-**Sensor data response layout (14 bytes):**
+**Sensor data response layout (16 bytes):**
 
 | Offset | Size | Field | Units |
 |---|---|---|---|
@@ -54,8 +54,9 @@ The receive state machine in `comms.cpp` (`processSerial()`) is a four-state FSM
 | 10 | uint8 | pump PWM | 0–255 raw |
 | 11–12 | uint16 BE | injector duty | per-mille (0–1000) |
 | 13 | uint8 | accel pump active | 0 or 1 |
+| 14–15 | uint16 BE | injector open duration | µs (0–25 000) |
 
-Injector duty is computed as `last_pulse_width_us × 1000 / period_us`, where `period_us` is either 16 667 µs (60 Hz) or `60 000 000 / rpm` (sync mode).
+Injector duty is computed as `last_pulse_width_us × 1000 / period_us`, where `period_us` is either 16 667 µs (60 Hz) or `60 000 000 / rpm` (sync mode). Injector open duration is `last_pulse_width_us` transmitted directly.
 
 ### Injection Map
 

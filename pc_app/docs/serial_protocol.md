@@ -36,7 +36,7 @@ CRC-8/SMBUS: polynomial `0x07`, initial value `0x00`, no input/output reflection
 
 | Command | ID | Direction | Payload | Response |
 |---|---|---|---|---|
-| `CMD_READ_SENSORS`    | `0x01` | PC → ECU | none | 14-byte sensor data (see below) |
+| `CMD_READ_SENSORS`    | `0x01` | PC → ECU | none | 16-byte sensor data (see below) |
 | `CMD_WRITE_MAP`       | `0x02` | PC → ECU | 40 bytes (10×4 uint8) | ACK/NACK |
 | `CMD_WRITE_PID`       | `0x03` | PC → ECU | 12 bytes (3× float32) | ACK/NACK |
 | `CMD_WRITE_PRESSURE`  | `0x04` | PC → ECU | 10 bytes (2× float32 + uint16) | ACK/NACK |
@@ -61,22 +61,23 @@ CRC-8/SMBUS: polynomial `0x07`, initial value `0x00`, no input/output reflection
 
 ## Payload Layouts
 
-### Sensor response — `CMD_READ_SENSORS` (14 bytes)
+### Sensor response — `CMD_READ_SENSORS` (16 bytes)
 
 Decoded by `decode_sensor_data()` into a `SensorData` object.
 
-| Bytes | Type    | Field          | Conversion |
-|-------|---------|----------------|------------|
-| 0–1   | uint16  | RPM            | direct (rev/min) |
-| 2     | uint8   | TPS raw        | ÷ 100 → 0.0–1.0 |
-| 3     | uint8   | FPS raw        | ÷ 16 → bar |
-| 4–5   | int16   | IAT raw        | ÷ 10 → °C |
-| 6–7   | int16   | ET raw         | ÷ 10 → °C |
-| 8     | uint8   | pump_active    | 0/1 |
-| 9     | uint8   | battery raw    | ÷ 16 → V |
-| 10    | uint8   | pump PWM       | raw 0–255 |
-| 11–12 | uint16  | injector duty  | ÷ 10 → % |
-| 13    | uint8   | accel_active   | 0/1 |
+| Bytes | Type    | Field                  | Conversion |
+|-------|---------|------------------------|------------|
+| 0–1   | uint16  | RPM                    | direct (rev/min) |
+| 2     | uint8   | TPS raw                | ÷ 100 → 0.0–1.0 |
+| 3     | uint8   | FPS raw                | ÷ 16 → bar |
+| 4–5   | int16   | IAT raw                | ÷ 10 → °C |
+| 6–7   | int16   | ET raw                 | ÷ 10 → °C |
+| 8     | uint8   | pump_active            | 0/1 |
+| 9     | uint8   | battery raw            | ÷ 16 → V |
+| 10    | uint8   | pump PWM               | raw 0–255 |
+| 11–12 | uint16  | injector duty          | ÷ 10 → % |
+| 13    | uint8   | accel_active           | 0/1 |
+| 14–15 | uint16  | injector open duration | direct → µs (0–25 000) |
 
 ### Injection map — `CMD_WRITE_MAP` / `CMD_READ_MAP` (40 bytes)
 
@@ -121,7 +122,7 @@ Defined in `protocol.py`:
 
 | Class | Fields |
 |---|---|
-| `SensorData` | rpm, tps (0–1), fps_bar, iat_degc, et_degc, pump_active, bat_v, pump_duty, inj_duty, accel_active |
+| `SensorData` | rpm, tps (0–1), fps_bar, iat_degc, et_degc, pump_active, bat_v, pump_duty, inj_duty, accel_active, inj_open_us |
 | `PIDParams` | kp, ki, kd |
 | `PressureConfig` | low_bar, high_bar, threshold_rpm |
 | `AccelPumpParams` | threshold_pct_per_s, extra_us, duration_ms |

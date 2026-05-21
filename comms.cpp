@@ -315,7 +315,7 @@ void printSensorDebug()
 
 void sendSensorData()
 {
-    uint8_t buf[14];
+    uint8_t buf[16];
     // rpm: uint16
     buf[0] = rpm >> 8;
     buf[1] = rpm & 0xFF;
@@ -350,6 +350,9 @@ void sendSensorData()
     buf[12] = inj_duty & 0xFF;
     // accel pump active flag
     buf[13] = isAccelPumpActive() ? 1 : 0;
+    // injector open duration: uint16, µs
+    buf[14] = last_pulse_width_us >> 8;
+    buf[15] = last_pulse_width_us & 0xFF;
 
     sendPacket(CMD_READ_SENSORS, buf, sizeof(buf));
 }

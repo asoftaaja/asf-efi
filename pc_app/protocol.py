@@ -50,7 +50,7 @@ TPS_BREAKPOINTS = [0, 30, 60, 100]   # percent integers (0–100)
 class SensorData:
     def __init__(self, rpm=0, tps=0.0, fps_bar=0.0, iat_degc=0.0,
                  et_degc=0.0, pump_active=False, bat_v=0.0,
-                 pump_duty=0, inj_duty=0.0, accel_active=False):
+                 pump_duty=0, inj_duty=0.0, accel_active=False, inj_open_us=0):
         self.rpm = rpm
         self.tps = tps             # 0.0 – 1.0
         self.fps_bar = fps_bar
@@ -61,6 +61,7 @@ class SensorData:
         self.pump_duty = pump_duty  # raw PWM 0–255
         self.inj_duty = inj_duty    # injector duty cycle in percent (0.0–100.0)
         self.accel_active = accel_active  # True while accel pump enrichment is active
+        self.inj_open_us = inj_open_us   # injector open duration in µs
 
 
 class PIDParams:
@@ -222,11 +223,11 @@ def decode_accel_pump(payload: bytes) -> 'AccelPumpParams':
 
 
 def decode_sensor_data(payload: bytes) -> SensorData:
-    """Unpack 14-byte sensor response payload."""
-    if len(payload) < 14:
+    """Unpack 16-byte sensor response payload."""
+    if len(payload) < 16:
         raise ValueError(f"Sensor payload too short: {len(payload)}")
-    rpm, tps_raw, fps_raw, iat_raw, et_raw, pump_active, bat_raw, pump_pwm, inj_duty_pm, accel_raw = \
-        struct.unpack('>HBBhhBBBHB', payload[:14])
+    rpm, tps_raw, fps_raw, iat_raw, et_raw, pump_active, bat_raw, pump_pwm, inj_duty_pm, accel_raw, inj_open_us = \
+        struct.unpack('>HBBhhBBBHBH', payload[:16])
     return SensorData(
         rpm=rpm,
         tps=tps_raw / 100.0,
@@ -238,6 +239,7 @@ def decode_sensor_data(payload: bytes) -> SensorData:
         pump_duty=pump_pwm,
         inj_duty=inj_duty_pm / 10.0,
         accel_active=bool(accel_raw),
+        inj_open_us=inj_open_us,
     )
 
 

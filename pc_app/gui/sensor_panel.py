@@ -40,8 +40,9 @@ class SensorPanel(ttk.LabelFrame):
             ("ET",     "_et_var",   "---.- °C", True),
             ("PUMP",   "_pump_var", "OFF",      False),
             ("P.DUTY", "_pdut_var", "--- %",    False),
-            ("I.DUTY", "_idut_var", "--.- %",   False),
-            ("VBAT",   "_vbat_var", "--.- V",   True),
+            ("I.DUTY", "_idut_var", "--.- %",    False),
+            ("INJ",    "_inj_var",  "--.- ms",   False),
+            ("VBAT",   "_vbat_var", "--.- V",    True),
         ]
 
         # Map from alarm key to label widget
@@ -139,6 +140,7 @@ class SensorPanel(ttk.LabelFrame):
                 self._pump_var.set("ON" if data.pump_active else "OFF")
                 self._pdut_var.set(f"{data.pump_duty / 255 * 100:.0f} %")
                 self._idut_var.set(f"{data.inj_duty:.1f} %")
+                self._inj_var.set(f"{data.inj_open_us / 1000:.1f} ms")
                 self._vbat_var.set(f"{data.bat_v:.2f} V")
                 if data.accel_active:
                     self._accel_label.config(text="ACTIVE", foreground="#FF8C00")
