@@ -25,12 +25,16 @@ class PumpPanel(ttk.LabelFrame):
         self._status_var = tk.StringVar()
         ttk.Label(self, textvariable=self._status_var, width=16).grid(row=1, column=0, columnspan=2, pady=(4, 0))
 
+        self._inhibited = False
+        self._prime_busy = False
+
     def _prime(self) -> None:
         worker = self._get_worker()
         if worker is None:
             self._status_var.set("Not connected")
             return
 
+        self._prime_busy = True
         self._btn.configure(state="disabled")
         self._status_var.set("Priming...")
 
@@ -47,7 +51,9 @@ class PumpPanel(ttk.LabelFrame):
         self.after(PRIME_LOCKOUT_MS, self._reset)
 
     def _reset(self) -> None:
-        self._btn.configure(state="normal")
+        self._prime_busy = False
+        if not self._inhibited:
+            self._btn.configure(state="normal")
         self._status_var.set("")
 
     def _toggle_pump(self) -> None:
@@ -73,7 +79,26 @@ class PumpPanel(ttk.LabelFrame):
             self._status_var.set("Pump ON" if new_state else "")
         else:
             self._status_var.set(f"Failed: {err}")
-        self._toggle_btn.configure(state="normal")
+        if not self._inhibited:
+            self._toggle_btn.configure(state="normal")
+
+    def set_inhibited(self, inhibited: bool) -> None:
+        """Disable test buttons when the device is in an unsafe state (e.g. low VBAT).
+
+        While inhibited, both the prime and pump-on buttons cannot be pressed.
+        """
+        if inhibited == self._inhibited:
+            return
+        self._inhibited = inhibited
+        if inhibited:
+            self._btn.configure(state="disabled")
+            self._toggle_btn.configure(state="disabled")
+            self._status_var.set("Low VBAT")
+        else:
+            if not self._prime_busy:
+                self._btn.configure(state="normal")
+            self._toggle_btn.configure(state="normal")
+            self._status_var.set("Pump ON" if self._pump_on else "")
 
     def sync_state(self, pump_active: bool) -> None:
         """Update button visual to reflect actual ECU pump state (no command sent)."""

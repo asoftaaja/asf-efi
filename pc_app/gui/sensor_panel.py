@@ -8,6 +8,7 @@ from data_logger import DataLogger
 
 REFRESH_MS = 200
 FLASH_MS   = 500   # flash period half-cycle (2 Hz total)
+LOW_VBAT_V = 9.0   # below this, FPS/PUMP readings are unreliable
 
 # Fields that can trigger alarms; mapped to (label_attr, var_attr)
 _ALARM_FIELDS = {
@@ -132,12 +133,13 @@ class SensorPanel(ttk.LabelFrame):
             self._state.sensor_fresh.clear()
             data = self._state.get_sensors()
             if data:
+                low_vbat = data.bat_v < LOW_VBAT_V
                 self._rpm_var.set(f"{data.rpm}")
                 self._tps_var.set(f"{data.tps * 100:.1f} %")
-                self._fps_var.set(f"{data.fps_bar:.2f} bar")
+                self._fps_var.set("xxx" if low_vbat else f"{data.fps_bar:.2f} bar")
                 self._iat_var.set(f"{data.iat_degc:.1f} °C")
                 self._et_var.set(f"{data.et_degc:.1f} °C")
-                self._pump_var.set("ON" if data.pump_active else "OFF")
+                self._pump_var.set("xxx" if low_vbat else ("ON" if data.pump_active else "OFF"))
                 self._pdut_var.set(f"{data.pump_duty / 255 * 100:.0f} %")
                 self._idut_var.set(f"{data.inj_duty:.1f} %")
                 self._inj_var.set(f"{data.inj_open_us / 1000:.1f} ms")
@@ -156,6 +158,7 @@ class SensorPanel(ttk.LabelFrame):
                     self._map_editor.update_cursor(data.rpm, data.tps)
                 if self._pump_panel:
                     self._pump_panel.sync_state(data.pump_active)
+                    self._pump_panel.set_inhibited(low_vbat)
         self._schedule()
 
     def _update_alarms(self, data) -> None:
@@ -164,7 +167,7 @@ class SensorPanel(ttk.LabelFrame):
         target = pressure.high_bar if rpm >= pressure.threshold_rpm else pressure.low_bar
 
         self._alarms.clear()
-        if data.fps_bar < (target - 0.2):
+        if data.bat_v >= LOW_VBAT_V and data.fps_bar < (target - 0.2):
             self._alarms.add("fps")
         if data.et_degc > self._state.et_alarm_threshold:
             self._alarms.add("et")
