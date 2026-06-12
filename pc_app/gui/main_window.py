@@ -176,12 +176,13 @@ class MainWindow(tk.Tk):
 
     def _on_tunefile_loaded(self) -> None:
         self._refresh_all()
-        s = self._state
-        if self._worker is not None and s.device_map_buf is not None:
-            if not self._buffers_match_state():
+        if self._worker is not None and self._state.device_read_complete.is_set():
+            diffs = self._diff_device_vs_state()
+            if diffs:
                 self._show_sync_warning(
-                    "Tune file loaded — device has different values. "
-                    "Write all to device, or load from device."
+                    "Tune file loaded — device differs. "
+                    "Write all to device, or load from device. "
+                    "Differs: " + ", ".join(diffs)
                 )
             else:
                 self._dismiss_sync_warning()
@@ -218,29 +219,45 @@ class MainWindow(tk.Tk):
         self._state.map_fresh.clear()
         self._state.axis_fresh.clear()
         self._state.config_fresh.clear()
+        self._state.device_read_complete.clear()
         self._state.device_map_buf = None
         self._state.device_rpm_axis_buf = None
         self._state.device_tps_axis_buf = None
         self._state.device_iat_corr_buf = None
         self._state.device_et_corr_buf  = None
+        self._state.device_pid_buf = None
+        self._state.device_pressure_buf = None
+        self._state.device_pump_mode_buf = None
+        self._state.device_accel_pump_buf = None
         self._dismiss_sync_warning()
-        # One-shot check — the worker reads map + axis at startup within ~0.5 s
-        self.after(1500, self._check_map_loaded)
+        # Poll for completion — worker takes up to ~5 s if any reads time out.
+        self._sync_poll_attempts = 0
+        self.after(200, self._poll_device_read)
 
-    def _check_map_loaded(self) -> None:
-        has_data = (self._state.map_fresh.is_set() or
-                    self._state.axis_fresh.is_set() or
-                    self._state.config_fresh.is_set())
-        if has_data and not self._buffers_match_state():
+    def _poll_device_read(self) -> None:
+        if self._worker is None:
+            return
+        if self._state.device_read_complete.is_set():
+            self._apply_device_values_and_warn()
+            return
+        self._sync_poll_attempts += 1
+        if self._sync_poll_attempts > 40:   # ~8 s @ 200 ms
+            self._apply_device_values_and_warn()
+            return
+        self.after(200, self._poll_device_read)
+
+    def _apply_device_values_and_warn(self) -> None:
+        """Diff device buffers against tune-file state, apply device values to
+        state/GUI, then warn if any field differed."""
+        diffs = self._diff_device_vs_state()
+        self._load_device_values(show_warning=False)
+        if diffs:
             self._show_sync_warning(
-                "Device values differ from the loaded tune file. "
-                "Write all to device, or load from device."
+                "Tune file values differ from device — device values are shown. "
+                "Differs: " + ", ".join(diffs)
             )
-        if self._state.config_fresh.is_set():
-            self._pid_panel.refresh_from_state()
-            self._pressure_panel.refresh_from_state()
-            self._corr_panel.refresh_from_state()
-            self._accel_pump_panel.refresh_from_state()
+        else:
+            self._dismiss_sync_warning()
 
     def _on_disconnect(self) -> None:
         self._worker = None
@@ -250,16 +267,40 @@ class MainWindow(tk.Tk):
 
     # ── Sync warning helpers ──────────────────────────────────────────────────
 
-    def _buffers_match_state(self) -> bool:
+    def _diff_device_vs_state(self) -> list:
+        """Return list of human-readable field names whose device buffer differs
+        from the corresponding tune-file value in state. Buffers that are None
+        (read failed) are skipped."""
         s = self._state
-        map_ok  = s.device_map_buf is None or s.device_map_buf == s.inj_map
-        axis_ok = (s.device_rpm_axis_buf is None or
-                   (s.device_rpm_axis_buf == s.rpm_axis and
-                    s.device_tps_axis_buf == s.tps_axis))
-        corr_ok = (s.device_iat_corr_buf is None or
-                   (s.device_iat_corr_buf == s.iat_corr and
-                    s.device_et_corr_buf  == s.et_corr))
-        return map_ok and axis_ok and corr_ok
+        diffs = []
+        if s.device_map_buf is not None and s.device_map_buf != s.inj_map:
+            diffs.append("injection map")
+        if s.device_rpm_axis_buf is not None and (
+                s.device_rpm_axis_buf != s.rpm_axis or
+                s.device_tps_axis_buf != s.tps_axis):
+            diffs.append("axis breakpoints")
+        if s.device_iat_corr_buf is not None and s.device_iat_corr_buf != s.iat_corr:
+            diffs.append("IAT correction")
+        if s.device_et_corr_buf is not None and s.device_et_corr_buf != s.et_corr:
+            diffs.append("ET correction")
+        if s.device_pid_buf is not None and (
+                s.device_pid_buf.kp != s.pid.kp or
+                s.device_pid_buf.ki != s.pid.ki or
+                s.device_pid_buf.kd != s.pid.kd):
+            diffs.append("PID")
+        if s.device_pressure_buf is not None and (
+                s.device_pressure_buf.low_bar != s.pressure.low_bar or
+                s.device_pressure_buf.high_bar != s.pressure.high_bar or
+                s.device_pressure_buf.threshold_rpm != s.pressure.threshold_rpm):
+            diffs.append("pressure config")
+        if s.device_pump_mode_buf is not None and s.device_pump_mode_buf != s.pump_mode_always_on:
+            diffs.append("pump mode")
+        if s.device_accel_pump_buf is not None and (
+                s.device_accel_pump_buf.threshold_pct_per_s != s.accel_pump.threshold_pct_per_s or
+                s.device_accel_pump_buf.extra_us != s.accel_pump.extra_us or
+                s.device_accel_pump_buf.duration_ms != s.accel_pump.duration_ms):
+            diffs.append("accel pump")
+        return diffs
 
     def _show_sync_warning(self, message: str) -> None:
         self._sync_label.config(text=f"  \u26a0  {message}")
@@ -272,7 +313,7 @@ class MainWindow(tk.Tk):
     def _dismiss_sync_warning(self) -> None:
         self._sync_bar.pack_forget()
 
-    def _load_device_values(self) -> None:
+    def _load_device_values(self, show_warning: bool = True) -> None:
         s = self._state
         if s.device_map_buf is not None:
             s.inj_map = s.device_map_buf
@@ -285,7 +326,20 @@ class MainWindow(tk.Tk):
             s.iat_corr = s.device_iat_corr_buf
             s.et_corr  = s.device_et_corr_buf
             self._corr_panel.refresh_from_state()
-        self._dismiss_sync_warning()
+        if s.device_pid_buf is not None:
+            s.pid = s.device_pid_buf
+            self._pid_panel.refresh_from_state()
+        if s.device_pressure_buf is not None:
+            s.pressure = s.device_pressure_buf
+        if s.device_pump_mode_buf is not None:
+            s.pump_mode_always_on = s.device_pump_mode_buf
+        if s.device_pressure_buf is not None or s.device_pump_mode_buf is not None:
+            self._pressure_panel.refresh_from_state()
+        if s.device_accel_pump_buf is not None:
+            s.accel_pump = s.device_accel_pump_buf
+            self._accel_pump_panel.refresh_from_state()
+        if show_warning:
+            self._dismiss_sync_warning()
 
     def _write_all_to_device(self) -> None:
         worker = self._worker
@@ -307,6 +361,10 @@ class MainWindow(tk.Tk):
         s.device_tps_axis_buf = list(s.tps_axis)
         s.device_iat_corr_buf = list(s.iat_corr)
         s.device_et_corr_buf  = list(s.et_corr)
+        s.device_pid_buf      = copy.deepcopy(s.pid)
+        s.device_pressure_buf = copy.deepcopy(s.pressure)
+        s.device_pump_mode_buf = s.pump_mode_always_on
+        s.device_accel_pump_buf = copy.deepcopy(s.accel_pump)
         self._dismiss_sync_warning()
 
     # ── Enable/disable tuning panels ─────────────────────────────────────────

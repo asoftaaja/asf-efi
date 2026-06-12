@@ -103,9 +103,9 @@ class SerialWorker(threading.Thread):
             pkt = self._read_packet(WRITE_TIMEOUT)
             if pkt and pkt[0] == CMD_READ_PUMP_CONFIG:
                 pid, pressure, pump_mode = decode_pump_config(pkt[1])
-                self._state.pid = pid
-                self._state.pressure = pressure
-                self._state.pump_mode_always_on = pump_mode
+                self._state.device_pid_buf = pid
+                self._state.device_pressure_buf = pressure
+                self._state.device_pump_mode_buf = pump_mode
         except (serial.SerialException, ValueError):
             pass  # non-fatal; panels will show default values
 
@@ -122,11 +122,12 @@ class SerialWorker(threading.Thread):
             self._serial.write(build_packet(CMD_READ_ACCEL_PUMP))
             pkt = self._read_packet(WRITE_TIMEOUT)
             if pkt and pkt[0] == CMD_READ_ACCEL_PUMP:
-                self._state.accel_pump = decode_accel_pump(pkt[1])
+                self._state.device_accel_pump_buf = decode_accel_pump(pkt[1])
         except (serial.SerialException, ValueError):
             pass  # non-fatal; panel will show default values
 
         self._state.config_fresh.set()
+        self._state.device_read_complete.set()
 
         miss_count = 0
         last_poll = 0.0

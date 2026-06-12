@@ -20,6 +20,7 @@ class ECUState:
         self.sensor_fresh = threading.Event()   # set when new sensor data arrives
         self.map_fresh    = threading.Event()   # set when map is loaded from device
         self.config_fresh = threading.Event()   # set when pump config loaded from device
+        self.device_read_complete = threading.Event()  # set when all startup reads done
 
         # ── Tunable parameters (GUI is source of truth, sent to ECU on demand) ─
         self.inj_map = [[0] * TPS_BINS for _ in range(RPM_BINS)]  # type: List[List[int]]
@@ -39,6 +40,10 @@ class ECUState:
         self.device_tps_axis_buf = None  # type: Optional[List[float]]
         self.device_iat_corr_buf = None  # type: Optional[List[float]]
         self.device_et_corr_buf  = None  # type: Optional[List[float]]
+        self.device_pid_buf       = None  # type: Optional[PIDParams]
+        self.device_pressure_buf  = None  # type: Optional[PressureConfig]
+        self.device_pump_mode_buf = None  # type: Optional[bool]
+        self.device_accel_pump_buf = None  # type: Optional[AccelPumpParams]
 
         # ── Alarm thresholds (local to PC app, not sent to device) ───────────
         self.et_alarm_threshold: float = 70.0    # °C — alert if ET exceeds this

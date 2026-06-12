@@ -18,6 +18,7 @@ ASF EFI is a fuel injection controller for a small single-cylinder engine, runni
 
 Compiled in Arduino IDE; code is split across multiple `.h`/`.cpp` files.
 Doxygen style documentation should be added in each function.
+The PC app must be compatible with Python 3.6.
 
 ## Feature documentation
 
