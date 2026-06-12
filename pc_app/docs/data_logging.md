@@ -66,11 +66,30 @@ The first 5 lines are reserved comment lines (blank `#` lines) for future metada
 
 | File | Role |
 |---|---|
-| `pc_app/data_logger.py` | `DataLogger` class — file creation, row writing, close |
-| `pc_app/gui/sensor_panel.py` | Start/Stop button, indicator label, calls `DataLogger.log()` at 5 Hz |
+| `pc_app/data_logger.py` | `DataLogger` class — file creation, worker thread, row writing, close |
+| `pc_app/data_model.py` | `ECUState.log_sensor_fresh` event — set whenever a new sensor packet arrives |
+| `pc_app/gui/sensor_panel.py` | Start/Stop button, recording/error indicator, polls `DataLogger.error_msg` |
 | `pc_app/gui/main_window.py` | Enables the button on connect; calls `stop_log()` on disconnect |
 
-`DataLogger` is instantiated inside `SensorPanel` and is only accessed from the Tk main thread, so no additional locking is required.
+### Thread model
+
+Logging runs on its own background thread (`DataLoggerWorker`), spawned by `DataLogger.start()` and joined by `DataLogger.stop()`. The worker waits on `ECUState.log_sensor_fresh` (a parallel `threading.Event` set by `ECUState.update_sensors()` alongside `sensor_fresh`). This keeps logging fully decoupled from the Tk main loop:
+
+- Modal dialogs, map redraws, and other GUI activity cannot pause logging.
+- Slow disk I/O cannot freeze the GUI.
+- The GUI's own `sensor_fresh` event is untouched by the logger, so both consumers see every packet.
+
+### Skipped frames
+
+If no new sensor packet arrives within one 200 ms sample window, the worker writes nothing for that tick — a serial stall is visible as a gap in the `timestamp` column rather than as a duplicated row.
+
+### Flush policy
+
+The worker flushes every 5 rows (~1 s) and unconditionally on `stop()`. Up to ~1 s of trailing data may be lost on a hard process crash; this trades a small risk window for far fewer syscalls.
+
+### Error handling
+
+If a write raises `OSError` (full disk, removed USB stick, etc.), the worker stores the message in `DataLogger.error_msg` and exits cleanly. The `SensorPanel` refresh loop polls this field at 5 Hz and switches the indicator to `● LOG ERROR`, resetting the button to **Start Log**.
 
 ---
 

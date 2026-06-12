@@ -99,7 +99,8 @@ class SensorPanel(ttk.LabelFrame):
         """Stop the active log session if one is running."""
         if self._logger.is_active:
             self._logger.stop()
-            self._log_btn.configure(text="Start Log")
+        self._log_btn.configure(text="Start Log")
+        if self._logger.error_msg is None:
             self._rec_label.configure(text="")
 
     def _toggle_log(self) -> None:
@@ -107,9 +108,9 @@ class SensorPanel(ttk.LabelFrame):
         if self._logger.is_active:
             self.stop_log()
         else:
-            path = self._logger.start(self._log_dir)
+            path = self._logger.start(self._log_dir, self._state)
             self._log_btn.configure(text="Stop Log")
-            self._rec_label.configure(text="● RECORDING")
+            self._rec_label.configure(text="● RECORDING", foreground="red")
 
     def _schedule(self) -> None:
         self.after(REFRESH_MS, self._refresh)
@@ -151,15 +152,21 @@ class SensorPanel(ttk.LabelFrame):
 
                 self._update_alarms(data)
 
-                if self._logger.is_active:
-                    self._logger.log(data)
-
                 if self._map_editor:
                     self._map_editor.update_cursor(data.rpm, data.tps)
                 if self._pump_panel:
                     self._pump_panel.sync_state(data.pump_active)
                     self._pump_panel.set_inhibited(low_vbat)
+
+        self._check_log_error()
         self._schedule()
+
+    def _check_log_error(self) -> None:
+        """If the logger worker died on an I/O error, surface it in the UI."""
+        if (self._logger.error_msg is not None
+                and self._log_btn.cget("text") == "Stop Log"):
+            self._log_btn.configure(text="Start Log")
+            self._rec_label.configure(text="● LOG ERROR", foreground="red")
 
     def _update_alarms(self, data) -> None:
         pressure = self._state.pressure

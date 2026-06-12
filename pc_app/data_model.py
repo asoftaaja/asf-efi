@@ -18,6 +18,7 @@ class ECUState:
         self._sensors_lock = threading.Lock()
         self._sensors = None  # type: Optional[SensorData]
         self.sensor_fresh = threading.Event()   # set when new sensor data arrives
+        self.log_sensor_fresh = threading.Event()  # parallel event consumed by DataLogger thread
         self.map_fresh    = threading.Event()   # set when map is loaded from device
         self.config_fresh = threading.Event()   # set when pump config loaded from device
         self.device_read_complete = threading.Event()  # set when all startup reads done
@@ -58,6 +59,7 @@ class ECUState:
         with self._sensors_lock:
             self._sensors = data
         self.sensor_fresh.set()
+        self.log_sensor_fresh.set()
 
     def update_inj_map(self, new_map: List[List[int]]) -> None:
         self.inj_map = new_map
