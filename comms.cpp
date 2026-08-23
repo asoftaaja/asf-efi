@@ -1,5 +1,6 @@
 #include "comms.h"
 #include "accel_pump.h"
+#include "shift_cut.h"
 #include "asf_efi.h"
 #include "pump.h"
 #include "eeprom_map.h"
@@ -247,6 +248,30 @@ static void dispatchCommand(const uint8_t *buf, uint8_t len)
         buf[4] = accel_duration_ms >> 8;
         buf[5] = accel_duration_ms & 0xFF;
         sendPacket(CMD_READ_ACCEL_PUMP, buf, sizeof(buf));
+        break;
+    }
+
+    case CMD_WRITE_SHIFT_CUT: {
+        if (plen != 5) { sendNACK(); return; }
+        uint16_t duration = ((uint16_t)payload[1] << 8) | payload[2];
+        if (duration < SHIFT_CUT_MIN_MS || duration > SHIFT_CUT_MAX_MS) { sendNACK(); return; }
+        shift_cut_enabled     = payload[0] ? 1 : 0;
+        shift_cut_duration_ms = duration;
+        shift_cut_min_rpm     = ((uint16_t)payload[3] << 8) | payload[4];
+        if (!shift_cut_enabled) resetShiftCut();
+        saveShiftCut();
+        sendACK();
+        break;
+    }
+
+    case CMD_READ_SHIFT_CUT: {
+        uint8_t buf[5];
+        buf[0] = shift_cut_enabled;
+        buf[1] = shift_cut_duration_ms >> 8;
+        buf[2] = shift_cut_duration_ms & 0xFF;
+        buf[3] = shift_cut_min_rpm >> 8;
+        buf[4] = shift_cut_min_rpm & 0xFF;
+        sendPacket(CMD_READ_SHIFT_CUT, buf, sizeof(buf));
         break;
     }
 

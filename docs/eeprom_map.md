@@ -31,9 +31,13 @@ All multi-byte integers are stored big-endian. Floats are IEEE 754 single-precis
 | 117 | 2 | Accel pump extra: `accel_extra_us` as uint16 BE | 121 | (shared) |
 | 119 | 2 | Accel pump duration: `accel_duration_ms` as uint16 BE | 121 | (shared) |
 | **121** | **1** | **Accel pump magic byte** | — | **0xAE** |
-| **122** | — | **First free byte** | — | — |
+| 122 | 1 | Shift cut enable: `shift_cut_enabled` as uint8 (0/1) | 127 | `0xAF` |
+| 123 | 2 | Shift cut duration: `shift_cut_duration_ms` as uint16 BE | 127 | (shared) |
+| 125 | 2 | Shift cut min RPM: `shift_cut_min_rpm` as uint16 BE | 127 | (shared) |
+| **127** | **1** | **Shift cut magic byte** | — | **0xAF** |
+| **128** | — | **First free byte** | — | — |
 
-Total used: 122 of 1024 bytes.
+Total used: 128 of 1024 bytes.
 
 ---
 
@@ -62,3 +66,4 @@ Each section has a dedicated save function in `eeprom_map.cpp`:
 | `savePumpMode()` | address 108 | `CMD_PUMP_MODE` |
 | `saveTpsCalibration()` | addresses 110–113 | `CMD_TPS_CAL_CLOSED` / `CMD_TPS_CAL_OPEN` |
 | `saveAccelPump()` | addresses 115–120 | `CMD_WRITE_ACCEL_PUMP` |
+| `saveShiftCut()` | addresses 122–126 | `CMD_WRITE_SHIFT_CUT` |

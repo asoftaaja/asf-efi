@@ -37,12 +37,13 @@ test/
   test_injection.cpp     Injection pulse width tests
   test_comms.cpp         Serial protocol tests
   test_pump.cpp          Fuel pump PI controller tests
+  test_shift_cut.cpp     Shift cut / ignition cut pulse tests
   support/
     Arduino.h            millis(), analogWrite(), Serial mock
     EEPROM.h             EEPROM.get/put/read/write mock
     test_globals.cpp     All shared globals (always linked)
     avr/
-      io.h               Hardware registers as extern volatile globals
+      io.h               Hardware registers as extern volatile globals (PORTD/PIND included)
       interrupt.h        ISR() macro -> void function, cli/sei no-ops
       pgmspace.h         PROGMEM/PSTR/pgm_read_* pass-throughs
 ```
@@ -79,7 +80,7 @@ TIMER1_CAPT_vect();           // called from test like any function
 
 ## Test Modules
 
-### test_ckps.cpp — CKPS / RPM (16 tests)
+### test_ckps.cpp — CKPS / RPM (20 tests)
 
 Covers `ISR(TIMER1_CAPT_vect)` and `ISR(TIMER1_OVF_vect)` from `ckps.cpp`.
 
@@ -98,6 +99,9 @@ Covers `ISR(TIMER1_CAPT_vect)` and `ISR(TIMER1_OVF_vect)` from `ckps.cpp`.
 | injection_trigger not set during startup | First two pulses are discarded |
 | Timeout true/false/exact boundary | `hasRPMTimeout()` at 100/99/100 ms |
 | resetCKPS | Clears trigger, re-arms pump gate |
+| resetCKPS clears shift cut | Ignition cut output (`PORTD` bit `PD7`) driven low |
+| Shift sensor sampled on startup pulses | Sampling happens before the pump-enable early return |
+| No cut with switch released | `PIND` bit `PD2` high -> output stays low |
 
 ### test_injection.cpp — Injection Pulse Width (20 tests)
 
@@ -125,7 +129,7 @@ Covers `calculatePulseWidth()`, `fireInjector()`, `shutoffInjector()`, and `ISR(
 | shutoffInjector | `PD4` cleared, `OCIE1A` disabled |
 | COMPA ISR closes injector | ISR call clears `PD4` and disables `OCIE1A` |
 
-### test_comms.cpp — Serial Protocol (28 tests)
+### test_comms.cpp — Serial Protocol (34 tests)
 
 Covers `processSerial()` and `sendSensorData()` from `comms.cpp`. Does not link `injection.cpp` or `pump.cpp` — constants (`RPM_BINS`, etc.) are defined locally and dependent functions are stubbed inline.
 
@@ -154,7 +158,7 @@ Covers `processSerial()` and `sendSensorData()` from `comms.cpp`. Does not link 
 | CMD_GET_ACCEL | Accel pump parameters echoed back |
 | Bad CRC | Packet silently discarded, no state change |
 
-### test_pump.cpp — Fuel Pump PI Controller (14 tests)
+### test_pump.cpp — Fuel Pump PI Controller (15 tests)
 
 Covers `updatePump()`, `disablePump()`, `primePump()`, and `isPriming()` from `pump.cpp`.
 
@@ -177,6 +181,27 @@ The `pid_prev_ms` timestamp is a static local inside `pump.cpp` and cannot be re
 | isPriming false after duration | Returns false at `PRIME_DURATION_MS + 1` |
 | isPriming false at exact boundary | Returns false at `PRIME_DURATION_MS` |
 | disablePump cancels prime | `isPriming()` returns false immediately |
+
+### test_shift_cut.cpp — Shift Cut (14 tests)
+
+Covers `initShiftCut()`, `sampleShiftSensor()`, `updateShiftCut()`, `isShiftCutActive()`, and `resetShiftCut()` from `shift_cut.cpp`. The switch is driven through the `PIND` mock (bit `PD2`, active low) and the output is asserted on the `PORTD` mock (bit `PD7`). `digitalWrite()` is a no-op in the Arduino mock, which is why the module uses direct port macros.
+
+| Test | What it checks |
+|---|---|
+| init leaves output low | `PD7` cleared, `isShiftCutActive()` false |
+| No cut when disabled | `shift_cut_enabled = 0` -> press ignored |
+| No cut below min RPM | 2999 RPM with `min_rpm = 3000` -> ignored |
+| Cut at exactly min RPM | 3000 RPM -> boundary triggers |
+| Press asserts output | `PD7` set, `isShiftCutActive()` true |
+| Cut lasts configured duration | High at 49 ms, low at 50 ms |
+| Minimum duration pulse | 10 ms (`SHIFT_CUT_MIN_MS`) boundary |
+| Maximum duration pulse | 100 ms (`SHIFT_CUT_MAX_MS`) boundary |
+| Held switch gives one cut | Ten further samples produce no second pulse |
+| Release then press | Second press after a release does cut |
+| Re-trigger during cut | Original pulse still ends at its own deadline |
+| resetShiftCut mid-pulse | Output dropped immediately |
+| resetShiftCut re-arms | Next sample can trigger again |
+| Injector bit untouched | `PD4` preserved across the cut pulse |
 
 ---
 

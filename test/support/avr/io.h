@@ -32,7 +32,10 @@ extern volatile uint8_t  TIMSK1;
 
 /* ---------- Port D ---------- */
 extern volatile uint8_t PORTD;
+extern volatile uint8_t PIND;   // input register (shift sensor)
+#define PD2    2   // shift sensor input pin
 #define PD4    4   // injector output pin
+#define PD7    7   // ignition cut output pin
 
 /* ---------- Status register (interrupt enable flag) ---------- */
 extern volatile uint8_t SREG_reg;

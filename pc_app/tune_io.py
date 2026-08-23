@@ -4,7 +4,8 @@ import json
 from pathlib import Path
 from typing import Optional
 
-from protocol import PIDParams, PressureConfig, AccelPumpParams, RPM_BREAKPOINTS, TPS_BREAKPOINTS
+from protocol import (PIDParams, PressureConfig, AccelPumpParams, ShiftCutParams,
+                      RPM_BREAKPOINTS, TPS_BREAKPOINTS)
 
 TUNEFILES_DIR = Path("tunefiles")
 _LAST_FILE = TUNEFILES_DIR / ".last"
@@ -34,6 +35,11 @@ def save_tunefile(path: "Path | str", state) -> None:
             "threshold_pct_per_s": state.accel_pump.threshold_pct_per_s,
             "extra_us": state.accel_pump.extra_us,
             "duration_ms": state.accel_pump.duration_ms,
+        },
+        "shift_cut": {
+            "enabled": state.shift_cut.enabled,
+            "duration_ms": state.shift_cut.duration_ms,
+            "min_rpm": state.shift_cut.min_rpm,
         },
         "alarms": {
             "et_threshold": state.et_alarm_threshold,
@@ -66,6 +72,12 @@ def load_tunefile(path: "Path | str", state) -> None:
         threshold_pct_per_s=int(ap.get("threshold_pct_per_s", 50)),
         extra_us=int(ap.get("extra_us", 500)),
         duration_ms=int(ap.get("duration_ms", 300)),
+    )
+    sc = data.get("shift_cut", {})
+    state.shift_cut = ShiftCutParams(
+        enabled=bool(sc.get("enabled", True)),
+        duration_ms=int(sc.get("duration_ms", 50)),
+        min_rpm=int(sc.get("min_rpm", 3000)),
     )
     alarms = data.get("alarms", {})
     state.et_alarm_threshold   = float(alarms.get("et_threshold",   110.0))

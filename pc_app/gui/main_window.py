@@ -12,9 +12,9 @@ import tune_io
 from protocol import (
     CMD_WRITE_MAP, CMD_WRITE_AXIS, CMD_WRITE_PID,
     CMD_WRITE_PRESSURE, CMD_WRITE_IAT_CORR, CMD_WRITE_ET_CORR,
-    CMD_WRITE_ACCEL_PUMP,
+    CMD_WRITE_ACCEL_PUMP, CMD_WRITE_SHIFT_CUT,
     encode_map, encode_axis, encode_pid, encode_pressure, encode_corrections,
-    encode_accel_pump,
+    encode_accel_pump, encode_shift_cut,
 )
 from gui.connection_panel  import ConnectionPanel
 from gui.sensor_panel      import SensorPanel
@@ -25,6 +25,7 @@ from gui.correction_panel  import CorrectionPanel
 from gui.pump_panel        import PumpPanel
 from gui.tune_file_panel   import TuneFilePanel
 from gui.accel_pump_panel  import AccelPumpPanel
+from gui.shift_cut_panel   import ShiftCutPanel
 from gui.alarm_panel       import AlarmPanel
 
 
@@ -136,8 +137,11 @@ class MainWindow(tk.Tk):
         self._accel_pump_panel = AccelPumpPanel(tune_inner, self._state, self._get_worker)
         self._accel_pump_panel.grid(row=1, column=0, padx=8, pady=4, sticky="nw")
 
+        self._shift_cut_panel = ShiftCutPanel(tune_inner, self._state, self._get_worker)
+        self._shift_cut_panel.grid(row=1, column=1, padx=8, pady=4, sticky="nw")
+
         self._alarm_panel = AlarmPanel(tune_inner, self._state)
-        self._alarm_panel.grid(row=1, column=1, padx=8, pady=4, sticky="nw")
+        self._alarm_panel.grid(row=2, column=0, padx=8, pady=4, sticky="nw")
 
         # Wire sensor panel → pump panel for button state sync
         self._sensor_panel.set_pump_panel(self._pump_panel)
@@ -156,6 +160,7 @@ class MainWindow(tk.Tk):
             self._pressure_panel,
             self._pump_panel,
             self._accel_pump_panel,
+            self._shift_cut_panel,
             self._corr_panel,
             self._alarm_panel,
             self._write_all_btn,
@@ -194,6 +199,7 @@ class MainWindow(tk.Tk):
         self._pressure_panel.flush_to_state()
         self._corr_panel.flush_to_state()
         self._accel_pump_panel.flush_to_state()
+        self._shift_cut_panel.flush_to_state()
         self._alarm_panel.flush_to_state()
 
     def _refresh_all(self) -> None:
@@ -203,6 +209,7 @@ class MainWindow(tk.Tk):
         self._pressure_panel.refresh_from_state()
         self._corr_panel.refresh_from_state()
         self._accel_pump_panel.refresh_from_state()
+        self._shift_cut_panel.refresh_from_state()
         self._alarm_panel.refresh_from_state()
 
     # ── Worker accessor (passed as callable to panels) ───────────────────────
@@ -229,6 +236,7 @@ class MainWindow(tk.Tk):
         self._state.device_pressure_buf = None
         self._state.device_pump_mode_buf = None
         self._state.device_accel_pump_buf = None
+        self._state.device_shift_cut_buf  = None
         self._dismiss_sync_warning()
         # Poll for completion — worker takes up to ~5 s if any reads time out.
         self._sync_poll_attempts = 0
@@ -300,6 +308,11 @@ class MainWindow(tk.Tk):
                 s.device_accel_pump_buf.extra_us != s.accel_pump.extra_us or
                 s.device_accel_pump_buf.duration_ms != s.accel_pump.duration_ms):
             diffs.append("accel pump")
+        if s.device_shift_cut_buf is not None and (
+                s.device_shift_cut_buf.enabled != s.shift_cut.enabled or
+                s.device_shift_cut_buf.duration_ms != s.shift_cut.duration_ms or
+                s.device_shift_cut_buf.min_rpm != s.shift_cut.min_rpm):
+            diffs.append("shift cut")
         return diffs
 
     def _show_sync_warning(self, message: str) -> None:
@@ -338,6 +351,9 @@ class MainWindow(tk.Tk):
         if s.device_accel_pump_buf is not None:
             s.accel_pump = s.device_accel_pump_buf
             self._accel_pump_panel.refresh_from_state()
+        if s.device_shift_cut_buf is not None:
+            s.shift_cut = s.device_shift_cut_buf
+            self._shift_cut_panel.refresh_from_state()
         if show_warning:
             self._dismiss_sync_warning()
 
@@ -354,6 +370,7 @@ class MainWindow(tk.Tk):
         worker.send_command(CMD_WRITE_IAT_CORR,   encode_corrections(s.iat_corr))
         worker.send_command(CMD_WRITE_ET_CORR,    encode_corrections(s.et_corr))
         worker.send_command(CMD_WRITE_ACCEL_PUMP, encode_accel_pump(s.accel_pump))
+        worker.send_command(CMD_WRITE_SHIFT_CUT,  encode_shift_cut(s.shift_cut))
         # Update device buffers to reflect what was just written, so future
         # tune file loads don't falsely flag a mismatch.
         s.device_map_buf      = copy.deepcopy(s.inj_map)
@@ -365,6 +382,7 @@ class MainWindow(tk.Tk):
         s.device_pressure_buf = copy.deepcopy(s.pressure)
         s.device_pump_mode_buf = s.pump_mode_always_on
         s.device_accel_pump_buf = copy.deepcopy(s.accel_pump)
+        s.device_shift_cut_buf  = copy.deepcopy(s.shift_cut)
         self._dismiss_sync_warning()
 
     # ── Enable/disable tuning panels ─────────────────────────────────────────

@@ -69,6 +69,11 @@ uint16_t accel_threshold_pct_per_s = 50;
 uint16_t accel_extra_us             = 500;
 uint16_t accel_duration_ms          = 300;
 
+/* shift_cut.cpp symbols */
+uint8_t  shift_cut_enabled     = 1;
+uint16_t shift_cut_duration_ms = 50;
+uint16_t shift_cut_min_rpm     = 3000;
+
 /* Function stubs -- track calls for assertions */
 static bool prime_pump_called    = false;
 static bool disable_pump_called  = false;
@@ -89,7 +94,11 @@ void saveAxisBreakpoints() {}
 void savePumpMode()        {}
 void saveTpsCalibration()  {}
 void saveAccelPump()       {}
+void saveShiftCut()        {}
 void loadFromEEPROM()      {}
+
+void resetShiftCut()       {}
+bool isShiftCutActive()    { return false; }
 
 /* ================================================================== */
 /* Packet building helpers                                             */
@@ -587,4 +596,66 @@ void test_cmd_read_accel_pump_returns_current_params(void)
     TEST_ASSERT_EQUAL_HEX8(CMD_READ_ACCEL_PUMP, Serial.tx_buf[2]);
     uint16_t thr = ((uint16_t)Serial.tx_buf[3] << 8) | Serial.tx_buf[4];
     TEST_ASSERT_EQUAL_UINT16(500, thr);
+}
+
+/* ================================================================== */
+/* CMD_WRITE_SHIFT_CUT / CMD_READ_SHIFT_CUT                           */
+/* ================================================================== */
+
+void test_cmd_write_shift_cut_updates_params_and_acks(void)
+{
+    uint8_t payload[5];
+    payload[0] = 0x01;                      // enabled
+    payload[1] = 0x00; payload[2] = 0x50;   // duration = 80 ms
+    payload[3] = 0x0F; payload[4] = 0xA0;   // min RPM  = 4000
+    feed_packet(CMD_WRITE_SHIFT_CUT, payload, 5);
+    processSerial();
+
+    TEST_ASSERT_TRUE(tx_has_cmd(CMD_ACK));
+    TEST_ASSERT_EQUAL_UINT8(1,     shift_cut_enabled);
+    TEST_ASSERT_EQUAL_UINT16(80,   shift_cut_duration_ms);
+    TEST_ASSERT_EQUAL_UINT16(4000, shift_cut_min_rpm);
+}
+
+/* Duration outside SHIFT_CUT_MIN_MS..SHIFT_CUT_MAX_MS must be rejected
+ * outright rather than silently clamped, so the tuner sees the error. */
+void test_cmd_write_shift_cut_rejects_out_of_range_duration(void)
+{
+    shift_cut_duration_ms = 50;
+
+    uint8_t payload[5];
+    payload[0] = 0x01;
+    payload[1] = 0x00; payload[2] = 0xC8;   // 200 ms -> too long
+    payload[3] = 0x0B; payload[4] = 0xB8;
+    feed_packet(CMD_WRITE_SHIFT_CUT, payload, 5);
+    processSerial();
+
+    TEST_ASSERT_TRUE(tx_has_cmd(CMD_NACK));
+    TEST_ASSERT_EQUAL_UINT16(50, shift_cut_duration_ms);   // unchanged
+}
+
+void test_cmd_write_shift_cut_rejects_wrong_length(void)
+{
+    uint8_t payload[4] = { 1, 0, 50, 0 };
+    feed_packet(CMD_WRITE_SHIFT_CUT, payload, 4);
+    processSerial();
+
+    TEST_ASSERT_TRUE(tx_has_cmd(CMD_NACK));
+}
+
+void test_cmd_read_shift_cut_returns_current_params(void)
+{
+    shift_cut_enabled     = 1;
+    shift_cut_duration_ms = 80;
+    shift_cut_min_rpm     = 4000;
+    uint8_t payload[] = {};
+    feed_packet(CMD_READ_SHIFT_CUT, payload, 0);
+    processSerial();
+
+    TEST_ASSERT_EQUAL_HEX8(CMD_READ_SHIFT_CUT, Serial.tx_buf[2]);
+    TEST_ASSERT_EQUAL_UINT8(1, Serial.tx_buf[3]);
+    uint16_t dur = ((uint16_t)Serial.tx_buf[4] << 8) | Serial.tx_buf[5];
+    uint16_t min_rpm = ((uint16_t)Serial.tx_buf[6] << 8) | Serial.tx_buf[7];
+    TEST_ASSERT_EQUAL_UINT16(80,   dur);
+    TEST_ASSERT_EQUAL_UINT16(4000, min_rpm);
 }

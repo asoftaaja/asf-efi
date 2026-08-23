@@ -1,5 +1,6 @@
 #include "eeprom_map.h"
 #include "accel_pump.h"
+#include "shift_cut.h"
 #include "asf_efi.h"
 #include <EEPROM.h>
 
@@ -147,6 +148,22 @@ void loadFromEEPROM()
         accel_duration_ms          = ((uint16_t)EEPROM.read(EEPROM_ADDR_ACCEL_PUMP + 4) << 8)
                                   |  (uint16_t)EEPROM.read(EEPROM_ADDR_ACCEL_PUMP + 5);
     }
+
+    // Shift cut — separate magic; defaults are the values in shift_cut.cpp
+    if (EEPROM.read(EEPROM_ADDR_SHIFT_CUT_MAGIC) != EEPROM_SHIFT_CUT_MAGIC_VALUE) {
+        saveShiftCut();
+        EEPROM.write(EEPROM_ADDR_SHIFT_CUT_MAGIC, EEPROM_SHIFT_CUT_MAGIC_VALUE);
+    } else {
+        shift_cut_enabled     = EEPROM.read(EEPROM_ADDR_SHIFT_CUT) ? 1 : 0;
+        shift_cut_duration_ms = ((uint16_t)EEPROM.read(EEPROM_ADDR_SHIFT_CUT + 1) << 8)
+                              |  (uint16_t)EEPROM.read(EEPROM_ADDR_SHIFT_CUT + 2);
+        shift_cut_min_rpm     = ((uint16_t)EEPROM.read(EEPROM_ADDR_SHIFT_CUT + 3) << 8)
+                              |  (uint16_t)EEPROM.read(EEPROM_ADDR_SHIFT_CUT + 4);
+
+        // Guard against a corrupted cell producing an out-of-range cut length
+        if (shift_cut_duration_ms < SHIFT_CUT_MIN_MS) shift_cut_duration_ms = SHIFT_CUT_MIN_MS;
+        if (shift_cut_duration_ms > SHIFT_CUT_MAX_MS) shift_cut_duration_ms = SHIFT_CUT_MAX_MS;
+    }
 }
 
 void saveInjectionMap()
@@ -218,4 +235,13 @@ void saveAccelPump()
     EEPROM.update(EEPROM_ADDR_ACCEL_PUMP + 3, accel_extra_us & 0xFF);
     EEPROM.update(EEPROM_ADDR_ACCEL_PUMP + 4, accel_duration_ms >> 8);
     EEPROM.update(EEPROM_ADDR_ACCEL_PUMP + 5, accel_duration_ms & 0xFF);
+}
+
+void saveShiftCut()
+{
+    EEPROM.update(EEPROM_ADDR_SHIFT_CUT,     shift_cut_enabled ? 1 : 0);
+    EEPROM.update(EEPROM_ADDR_SHIFT_CUT + 1, shift_cut_duration_ms >> 8);
+    EEPROM.update(EEPROM_ADDR_SHIFT_CUT + 2, shift_cut_duration_ms & 0xFF);
+    EEPROM.update(EEPROM_ADDR_SHIFT_CUT + 3, shift_cut_min_rpm >> 8);
+    EEPROM.update(EEPROM_ADDR_SHIFT_CUT + 4, shift_cut_min_rpm & 0xFF);
 }

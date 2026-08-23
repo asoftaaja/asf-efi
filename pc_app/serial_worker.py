@@ -17,9 +17,11 @@ import serial.tools.list_ports
 from protocol import (
     PKT_START, CMD_READ_SENSORS, CMD_READ_MAP, CMD_READ_AXIS,
     CMD_READ_PUMP_CONFIG, CMD_READ_CORRECTIONS, CMD_READ_ACCEL_PUMP,
+    CMD_READ_SHIFT_CUT,
     CMD_ACK, CMD_NACK,
     build_packet, parse_packet, decode_sensor_data, decode_map, decode_axis,
-    decode_pump_config, decode_corrections, decode_accel_pump, SERIAL_BAUD,
+    decode_pump_config, decode_corrections, decode_accel_pump, decode_shift_cut,
+    SERIAL_BAUD,
 )
 from data_model import ECUState
 
@@ -126,6 +128,14 @@ class SerialWorker(threading.Thread):
         except (serial.SerialException, ValueError):
             pass  # non-fatal; panel will show default values
 
+        try:
+            self._serial.write(build_packet(CMD_READ_SHIFT_CUT))
+            pkt = self._read_packet(WRITE_TIMEOUT)
+            if pkt and pkt[0] == CMD_READ_SHIFT_CUT:
+                self._state.device_shift_cut_buf = decode_shift_cut(pkt[1])
+        except (serial.SerialException, ValueError):
+            pass  # non-fatal; panel will show default values
+
         self._state.config_fresh.set()
         self._state.device_read_complete.set()
 
@@ -181,6 +191,12 @@ class SerialWorker(threading.Thread):
                 elif cmd == CMD_READ_ACCEL_PUMP and pkt[0] == CMD_READ_ACCEL_PUMP:
                     try:
                         self._state.accel_pump = decode_accel_pump(pkt[1])
+                        fut.set_result((True, None))
+                    except ValueError as exc:
+                        fut.set_result((False, str(exc)))
+                elif cmd == CMD_READ_SHIFT_CUT and pkt[0] == CMD_READ_SHIFT_CUT:
+                    try:
+                        self._state.shift_cut = decode_shift_cut(pkt[1])
                         fut.set_result((True, None))
                     except ValueError as exc:
                         fut.set_result((False, str(exc)))

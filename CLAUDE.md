@@ -11,6 +11,10 @@ ASF EFI is a fuel injection controller for a small single-cylinder engine, runni
 | CKPS | D8 | Falling edge, Timer1 ICP1 |
 | Injector | D4 | High = open |
 | Fuel pump | D3 | PWM output, Timer2 OC2B |
+| Shift sensor | D2 | INPUT_PULLUP, active low (switch to ground) |
+| Ignition cut | D7 | High = cut |
+| Battery voltage | A7 | Resistor divider |
+| Serial | D0/D1 | UART to PC app, 115200 baud |
 | Green LED | D12 | High = on |
 | Red LED | D13 | High = on |
 
@@ -32,6 +36,7 @@ Detailed implementation notes for specific features are kept in the `docs/` fold
 | [docs/pump.md](docs/pump.md) | Fuel pump control — PI pressure regulator, anti-windup, always-on mode, prime function, pump enable gating after 2 CKPS pulses |
 | [docs/sensors.md](docs/sensors.md) | Sensor reading — TPS linear + calibration, FPS linear, IAT/ET NTC thermistor lookup, battery voltage divider |
 | [docs/serial_protocol.md](docs/serial_protocol.md) | Serial protocol — packet frame format, CRC-8/SMBUS, all command IDs with payload layouts, sensor data packet structure |
+| [docs/shift_cut.md](docs/shift_cut.md) | Shift cut — shift sensor input on D2 sampled in the CKPS ISR, ignition cut pulse output on D7, EEPROM layout (addresses 122–127), serial commands 0x17/0x18, PC app integration |
 | [docs/eeprom_map.md](docs/eeprom_map.md) | EEPROM layout — full address map (122 bytes used), per-section magic byte strategy, save function reference |
 | [docs/testing.md](docs/testing.md) | Test framework — Ceedling/Unity setup, mock layer architecture, ISR testability, per-module test coverage |
 | [pc_app/docs/implementation_summary.md](pc_app/docs/implementation_summary.md) | PC application — architecture, threading model, GUI layout, module responsibilities, connection behaviour |

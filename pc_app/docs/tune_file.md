@@ -33,6 +33,11 @@ Files are plain JSON, pretty-printed with 2-space indentation. There is no versi
     "extra_us": 500,
     "duration_ms": 300
   },
+  "shift_cut": {
+    "enabled": true,
+    "duration_ms": 50,        // ignition cut pulse length, 10-100 ms
+    "min_rpm": 3000
+  },
   "alarms": {
     "et_threshold": 110.0,
     "vbat_threshold": 11.5
@@ -52,6 +57,7 @@ Implemented in `tune_io.py`.
 - `rpm_axis`, `tps_axis` → compile-time defaults from `protocol.py`
 - `pump_mode_always_on` → `False`
 - `accel_pump` → threshold 50 %/s, extra 500 µs, duration 300 ms
+- `shift_cut` → enabled, 50 ms cut, 3000 min RPM
 - `alarms` → ET threshold 110 °C, VBAT threshold 11.5 V
 
 After loading, the path is written to `tunefiles/.last`.

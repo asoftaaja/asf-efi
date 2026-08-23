@@ -1,5 +1,6 @@
 #include "ckps.h"
 #include "asf_efi.h"
+#include "shift_cut.h"
 
 // Defined here, declared extern in ckps.h
 volatile bool injection_trigger = false;
@@ -35,6 +36,7 @@ void resetCKPS()
 {
     pulse_count       = 0;
     injection_trigger = false;
+    resetShiftCut();
 }
 
 // Track Timer1 overflows so we can compute a 32-bit period even at low RPM
@@ -70,6 +72,10 @@ ISR(TIMER1_CAPT_vect)
     }
 
     last_pulse_ms = millis();
+
+    // Sample the shift switch once per pulse — before the pump gate below, so the
+    // first two pulses after startup are not skipped
+    sampleShiftSensor(rpm);
 
     if (pulse_count < 2) {
         pulse_count++;

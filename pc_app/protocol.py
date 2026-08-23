@@ -33,6 +33,12 @@ CMD_TPS_CAL_CLOSED    = 0x11  # no payload; ECU captures live ADC as 0% position
 CMD_TPS_CAL_OPEN      = 0x12  # no payload; ECU captures live ADC as 100% position
 CMD_WRITE_ACCEL_PUMP  = 0x15  # payload: 6 bytes (threshold, extra_us, duration_ms as uint16 BE)
 CMD_READ_ACCEL_PUMP   = 0x16  # no payload; response: 6 bytes same layout
+CMD_WRITE_SHIFT_CUT   = 0x17  # payload: 5 bytes (enabled uint8 + duration_ms, min_rpm as uint16 BE)
+CMD_READ_SHIFT_CUT    = 0x18  # no payload; response: 5 bytes same layout
+
+# Firmware limits on the ignition cut pulse length (shift_cut.h)
+SHIFT_CUT_MIN_MS = 10
+SHIFT_CUT_MAX_MS = 100
 
 RPM_BINS = 10
 TPS_BINS = 4
@@ -83,6 +89,13 @@ class AccelPumpParams:
         self.threshold_pct_per_s = threshold_pct_per_s  # TPS rate to trigger (%/sec)
         self.extra_us = extra_us                         # Peak extra pulse width (µs)
         self.duration_ms = duration_ms                   # Enrichment decay duration (ms)
+
+
+class ShiftCutParams:
+    def __init__(self, enabled=True, duration_ms=50, min_rpm=3000):
+        self.enabled = enabled          # Master on/off for the shift cut feature
+        self.duration_ms = duration_ms  # Ignition cut pulse length (ms), 10–100
+        self.min_rpm = min_rpm          # Below this RPM the shift switch is ignored
 
 
 # ── CRC ──────────────────────────────────────────────────────────────────────
@@ -220,6 +233,20 @@ def decode_accel_pump(payload: bytes) -> 'AccelPumpParams':
         raise ValueError(f"Accel pump payload too short: {len(payload)}")
     t, e, d = struct.unpack_from('>HHH', payload, 0)
     return AccelPumpParams(threshold_pct_per_s=t, extra_us=e, duration_ms=d)
+
+
+def encode_shift_cut(params: 'ShiftCutParams') -> bytes:
+    """Pack enabled as uint8 + duration_ms, min_rpm as uint16 big-endian (5 bytes)."""
+    return struct.pack('>BHH', 1 if params.enabled else 0,
+                       params.duration_ms, params.min_rpm)
+
+
+def decode_shift_cut(payload: bytes) -> 'ShiftCutParams':
+    """Unpack 5-byte shift cut payload to ShiftCutParams."""
+    if len(payload) < 5:
+        raise ValueError(f"Shift cut payload too short: {len(payload)}")
+    en, d, r = struct.unpack_from('>BHH', payload, 0)
+    return ShiftCutParams(enabled=bool(en), duration_ms=d, min_rpm=r)
 
 
 def decode_sensor_data(payload: bytes) -> SensorData:

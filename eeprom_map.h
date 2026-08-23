@@ -23,8 +23,10 @@
 //  114         1   TPS cal magic byte — 0xAD when TPS cal section has been initialised
 //  115         6   Accel pump: threshold, extra_us, duration_ms as uint16 BE
 //  121         1   Accel pump magic — 0xAE
+//  122         5   Shift cut: enabled uint8 + duration_ms, min_rpm as uint16 BE
+//  127         1   Shift cut magic — 0xAF
 //  -------  ----
-//  122 bytes total
+//  128 bytes total
 
 #define EEPROM_ADDR_INJ_MAP        0
 #define EEPROM_ADDR_PID           40
@@ -47,10 +49,17 @@
 //  117         2   accel_extra_us (uint16 BE)
 //  119         2   accel_duration_ms (uint16 BE)
 //  121         1   Accel pump magic — 0xAE
-//  122 bytes total
 #define EEPROM_ADDR_ACCEL_PUMP        115
 #define EEPROM_ADDR_ACCEL_PUMP_MAGIC  121
 #define EEPROM_ACCEL_PUMP_MAGIC_VALUE 0xAE
+//  122         1   shift_cut_enabled (uint8, 0/1)
+//  123         2   shift_cut_duration_ms (uint16 BE)
+//  125         2   shift_cut_min_rpm (uint16 BE)
+//  127         1   Shift cut magic — 0xAF
+//  128 bytes total
+#define EEPROM_ADDR_SHIFT_CUT         122
+#define EEPROM_ADDR_SHIFT_CUT_MAGIC   127
+#define EEPROM_SHIFT_CUT_MAGIC_VALUE 0xAF
 
 void loadFromEEPROM();       // load all sections; writes defaults if uninitialised
 void saveInjectionMap();
@@ -62,3 +71,4 @@ void saveAxisBreakpoints();
 void savePumpMode();
 void saveTpsCalibration();
 void saveAccelPump();
+void saveShiftCut();

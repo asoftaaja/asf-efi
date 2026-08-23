@@ -128,6 +128,18 @@ Q8.8 encoding: 256 = 1.0 (no correction).
 
 **Accel pump layout (6 bytes):** threshold (uint16 BE), extra_us (uint16 BE), duration_ms (uint16 BE). See [accel_pump.md](accel_pump.md).
 
+### Shift Cut
+
+| ID | Name | Direction | Payload |
+|---|---|---|---|
+| `0x18` | `CMD_READ_SHIFT_CUT` | PC → ECU (request) | 0 |
+| `0x18` | `CMD_READ_SHIFT_CUT` | ECU → PC (response) | 5 bytes — see layout below |
+| `0x17` | `CMD_WRITE_SHIFT_CUT` | PC → ECU | 5 bytes same layout; ECU saves, responds ACK |
+
+**Shift cut layout (5 bytes):** enabled (uint8, 0/1), duration_ms (uint16 BE), min_rpm (uint16 BE).
+
+The write command responds NACK if the payload length is not 5 or if `duration_ms` is outside 10–100 ms — the value is rejected rather than clamped. See [shift_cut.md](shift_cut.md).
+
 ---
 
 ## CRC Algorithm

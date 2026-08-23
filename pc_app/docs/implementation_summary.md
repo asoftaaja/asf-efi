@@ -49,6 +49,10 @@ pc_app/
     ├── pid_panel.py          PID coefficient editor
     ├── pressure_panel.py     Fuel pressure target editor
     ├── correction_panel.py   IAT and ET correction multiplier tables
+    ├── accel_pump_panel.py   Accelerator pump enrichment editor
+    ├── shift_cut_panel.py    Shift cut enable, pulse duration and min RPM editor
+    ├── alarm_panel.py        ET and VBAT alarm thresholds (local to the PC app)
+    ├── tune_file_panel.py    Tune file load/save controls
     └── pump_panel.py         Pump prime button
 ```
 
