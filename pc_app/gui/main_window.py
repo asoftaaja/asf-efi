@@ -311,7 +311,8 @@ class MainWindow(tk.Tk):
         if s.device_shift_cut_buf is not None and (
                 s.device_shift_cut_buf.enabled != s.shift_cut.enabled or
                 s.device_shift_cut_buf.duration_ms != s.shift_cut.duration_ms or
-                s.device_shift_cut_buf.min_rpm != s.shift_cut.min_rpm):
+                s.device_shift_cut_buf.min_rpm != s.shift_cut.min_rpm or
+                s.device_shift_cut_buf.lockout_ms != s.shift_cut.lockout_ms):
             diffs.append("shift cut")
         return diffs
 

@@ -40,6 +40,7 @@ def save_tunefile(path: "Path | str", state) -> None:
             "enabled": state.shift_cut.enabled,
             "duration_ms": state.shift_cut.duration_ms,
             "min_rpm": state.shift_cut.min_rpm,
+            "lockout_ms": state.shift_cut.lockout_ms,
         },
         "alarms": {
             "et_threshold": state.et_alarm_threshold,
@@ -78,6 +79,7 @@ def load_tunefile(path: "Path | str", state) -> None:
         enabled=bool(sc.get("enabled", True)),
         duration_ms=int(sc.get("duration_ms", 50)),
         min_rpm=int(sc.get("min_rpm", 3000)),
+        lockout_ms=int(sc.get("lockout_ms", 500)),
     )
     alarms = data.get("alarms", {})
     state.et_alarm_threshold   = float(alarms.get("et_threshold",   110.0))

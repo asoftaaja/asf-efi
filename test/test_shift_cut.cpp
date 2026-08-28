@@ -5,6 +5,7 @@
  *   - switch press -> ignition cut output high
  *   - output drops again after exactly shift_cut_duration_ms
  *   - holding the switch produces exactly one cut (re-arm needs a release)
+ *   - post-shift lockout ignores the switch for shift_cut_lockout_ms
  *   - resetShiftCut() drops the output mid-pulse
  *
  * The output is checked through the PORTD mock (bit PD7); the sensor is driven
@@ -36,6 +37,7 @@ void setUp(void)
     shift_cut_enabled     = 1;
     shift_cut_duration_ms = 50;
     shift_cut_min_rpm     = 3000;
+    shift_cut_lockout_ms  = 500;
 
     resetShiftCut();
 }
@@ -52,6 +54,7 @@ void test_init_leaves_cut_output_low(void)
     initShiftCut();
     TEST_ASSERT_FALSE(cut_output_high());
     TEST_ASSERT_FALSE(isShiftCutActive());
+    TEST_ASSERT_FALSE(isShiftCutLockedOut());
 }
 
 /* ================================================================== */
@@ -163,10 +166,10 @@ void test_held_switch_gives_only_one_cut(void)
     updateShiftCut(50);
     TEST_ASSERT_FALSE(cut_output_high());
 
-    /* Still held: further samples must not re-trigger */
-    for (uint8_t i = 0; i < 10; i++) {
+    /* Still held, and well past the lockout: further samples must not re-trigger */
+    for (uint16_t t = 60; t < 1500; t += 10) {
         sampleShiftSensor(6000);
-        updateShiftCut(60 + i);
+        updateShiftCut(t);
         TEST_ASSERT_FALSE(cut_output_high());
     }
 }
@@ -184,13 +187,16 @@ void test_release_then_press_gives_second_cut(void)
     updateShiftCut(60);
     TEST_ASSERT_FALSE(cut_output_high());
 
+    updateShiftCut(500);           // lockout expires
     press_switch();
     sampleShiftSensor(6000);
-    updateShiftCut(70);
+    updateShiftCut(510);
     TEST_ASSERT_TRUE(cut_output_high());
 }
 
-/* A press while a cut is already running must not restart or extend it */
+/* A release-and-press while the cut is still running must not restart or
+ * extend it. The lockout suppresses the trigger; the !cutting guard in
+ * updateShiftCut() is the second line of defence. */
 void test_retrigger_during_cut_does_not_extend_pulse(void)
 {
     press_switch();
@@ -200,8 +206,8 @@ void test_retrigger_during_cut_does_not_extend_pulse(void)
     release_switch();
     sampleShiftSensor(6000);
     press_switch();
-    sampleShiftSensor(6000);       // sets the trigger flag again
-    updateShiftCut(20);            // consumed, but cut already running
+    sampleShiftSensor(6000);
+    updateShiftCut(20);
 
     updateShiftCut(50);            // original pulse still ends at 50 ms
     TEST_ASSERT_FALSE(cut_output_high());
@@ -223,19 +229,109 @@ void test_reset_drops_output_mid_pulse(void)
     TEST_ASSERT_FALSE(isShiftCutActive());
 }
 
-/* After a reset the switch must be re-armed even if it was never released,
- * but only once the rider lets go -- a stall with the lever held should not
- * fire a cut on the next start-up pulse. */
+/* resetShiftCut() re-arms the switch and clears the lockout, so the very next
+ * sample can fire even though the previous cut was moments ago. */
 void test_reset_rearms_module(void)
 {
     press_switch();
     sampleShiftSensor(6000);
     updateShiftCut(0);
     resetShiftCut();
+    TEST_ASSERT_FALSE(isShiftCutLockedOut());
 
     sampleShiftSensor(6000);       // still held
     updateShiftCut(10);
     TEST_ASSERT_TRUE(cut_output_high());   // reset re-armed it
+}
+
+/* ================================================================== */
+/* Post-shift lockout                                                  */
+/* ================================================================== */
+
+/* A release-and-press inside the lockout window must be ignored entirely --
+ * this is the lever-bounce / fast-double-tap case. */
+void test_lockout_ignores_press_within_window(void)
+{
+    shift_cut_lockout_ms = 500;
+
+    press_switch();
+    sampleShiftSensor(6000);
+    updateShiftCut(0);
+    updateShiftCut(50);            // cut over, lockout still running
+    TEST_ASSERT_TRUE(isShiftCutLockedOut());
+
+    release_switch();
+    sampleShiftSensor(6000);       // would normally re-arm
+    press_switch();
+    sampleShiftSensor(6000);       // suppressed by the lockout
+    updateShiftCut(100);
+
+    TEST_ASSERT_FALSE(cut_output_high());
+}
+
+/* The lockout is measured from the start of the cut, so it is the minimum
+ * time between shifts. At 499 ms it still blocks; at 500 ms it releases. */
+void test_lockout_expires_at_configured_time(void)
+{
+    shift_cut_lockout_ms = 500;
+
+    press_switch();
+    sampleShiftSensor(6000);
+    updateShiftCut(0);
+    release_switch();
+    sampleShiftSensor(6000);
+
+    updateShiftCut(499);
+    TEST_ASSERT_TRUE(isShiftCutLockedOut());
+
+    updateShiftCut(500);
+    TEST_ASSERT_FALSE(isShiftCutLockedOut());
+
+    press_switch();
+    sampleShiftSensor(6000);
+    updateShiftCut(501);
+    TEST_ASSERT_TRUE(cut_output_high());
+}
+
+void test_maximum_lockout(void)
+{
+    shift_cut_lockout_ms = SHIFT_LOCKOUT_MAX_MS;   // 1000 ms
+
+    press_switch();
+    sampleShiftSensor(6000);
+    updateShiftCut(0);
+    release_switch();
+    sampleShiftSensor(6000);
+
+    updateShiftCut(999);
+    press_switch();
+    sampleShiftSensor(6000);
+    updateShiftCut(999);
+    TEST_ASSERT_FALSE(cut_output_high());
+
+    release_switch();
+    sampleShiftSensor(6000);
+    updateShiftCut(1000);
+    press_switch();
+    sampleShiftSensor(6000);
+    updateShiftCut(1001);
+    TEST_ASSERT_TRUE(cut_output_high());
+}
+
+/* The lockout must not hold the ignition cut output high -- only the switch
+ * is ignored; the pulse still ends at shift_cut_duration_ms. */
+void test_lockout_does_not_extend_output(void)
+{
+    shift_cut_lockout_ms  = 1000;
+    shift_cut_duration_ms = 50;
+
+    press_switch();
+    sampleShiftSensor(6000);
+    updateShiftCut(0);
+    updateShiftCut(50);
+
+    TEST_ASSERT_FALSE(cut_output_high());
+    TEST_ASSERT_TRUE(isShiftCutLockedOut());
 }
 
 /* ================================================================== */

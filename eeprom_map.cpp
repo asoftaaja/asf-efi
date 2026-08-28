@@ -159,10 +159,14 @@ void loadFromEEPROM()
                               |  (uint16_t)EEPROM.read(EEPROM_ADDR_SHIFT_CUT + 2);
         shift_cut_min_rpm     = ((uint16_t)EEPROM.read(EEPROM_ADDR_SHIFT_CUT + 3) << 8)
                               |  (uint16_t)EEPROM.read(EEPROM_ADDR_SHIFT_CUT + 4);
+        shift_cut_lockout_ms  = ((uint16_t)EEPROM.read(EEPROM_ADDR_SHIFT_CUT + 5) << 8)
+                              |  (uint16_t)EEPROM.read(EEPROM_ADDR_SHIFT_CUT + 6);
 
-        // Guard against a corrupted cell producing an out-of-range cut length
+        // Guard against a corrupted cell producing out-of-range timings
         if (shift_cut_duration_ms < SHIFT_CUT_MIN_MS) shift_cut_duration_ms = SHIFT_CUT_MIN_MS;
         if (shift_cut_duration_ms > SHIFT_CUT_MAX_MS) shift_cut_duration_ms = SHIFT_CUT_MAX_MS;
+        if (shift_cut_lockout_ms < SHIFT_LOCKOUT_MIN_MS) shift_cut_lockout_ms = SHIFT_LOCKOUT_MIN_MS;
+        if (shift_cut_lockout_ms > SHIFT_LOCKOUT_MAX_MS) shift_cut_lockout_ms = SHIFT_LOCKOUT_MAX_MS;
     }
 }
 
@@ -244,4 +248,6 @@ void saveShiftCut()
     EEPROM.update(EEPROM_ADDR_SHIFT_CUT + 2, shift_cut_duration_ms & 0xFF);
     EEPROM.update(EEPROM_ADDR_SHIFT_CUT + 3, shift_cut_min_rpm >> 8);
     EEPROM.update(EEPROM_ADDR_SHIFT_CUT + 4, shift_cut_min_rpm & 0xFF);
+    EEPROM.update(EEPROM_ADDR_SHIFT_CUT + 5, shift_cut_lockout_ms >> 8);
+    EEPROM.update(EEPROM_ADDR_SHIFT_CUT + 6, shift_cut_lockout_ms & 0xFF);
 }

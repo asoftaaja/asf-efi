@@ -129,7 +129,7 @@ Covers `calculatePulseWidth()`, `fireInjector()`, `shutoffInjector()`, and `ISR(
 | shutoffInjector | `PD4` cleared, `OCIE1A` disabled |
 | COMPA ISR closes injector | ISR call clears `PD4` and disables `OCIE1A` |
 
-### test_comms.cpp — Serial Protocol (34 tests)
+### test_comms.cpp — Serial Protocol (35 tests)
 
 Covers `processSerial()` and `sendSensorData()` from `comms.cpp`. Does not link `injection.cpp` or `pump.cpp` — constants (`RPM_BINS`, etc.) are defined locally and dependent functions are stubbed inline.
 
@@ -182,9 +182,9 @@ The `pid_prev_ms` timestamp is a static local inside `pump.cpp` and cannot be re
 | isPriming false at exact boundary | Returns false at `PRIME_DURATION_MS` |
 | disablePump cancels prime | `isPriming()` returns false immediately |
 
-### test_shift_cut.cpp — Shift Cut (14 tests)
+### test_shift_cut.cpp — Shift Cut (18 tests)
 
-Covers `initShiftCut()`, `sampleShiftSensor()`, `updateShiftCut()`, `isShiftCutActive()`, and `resetShiftCut()` from `shift_cut.cpp`. The switch is driven through the `PIND` mock (bit `PD2`, active low) and the output is asserted on the `PORTD` mock (bit `PD7`). `digitalWrite()` is a no-op in the Arduino mock, which is why the module uses direct port macros.
+Covers `initShiftCut()`, `sampleShiftSensor()`, `updateShiftCut()`, `isShiftCutActive()`, `isShiftCutLockedOut()`, and `resetShiftCut()` from `shift_cut.cpp`. The switch is driven through the `PIND` mock (bit `PD2`, active low) and the output is asserted on the `PORTD` mock (bit `PD7`). `digitalWrite()` is a no-op in the Arduino mock, which is why the module uses direct port macros.
 
 | Test | What it checks |
 |---|---|
@@ -200,7 +200,11 @@ Covers `initShiftCut()`, `sampleShiftSensor()`, `updateShiftCut()`, `isShiftCutA
 | Release then press | Second press after a release does cut |
 | Re-trigger during cut | Original pulse still ends at its own deadline |
 | resetShiftCut mid-pulse | Output dropped immediately |
-| resetShiftCut re-arms | Next sample can trigger again |
+| resetShiftCut re-arms | Lockout cleared, next sample can trigger again |
+| Lockout ignores press in window | Release + press inside the lockout produces nothing |
+| Lockout expires at configured time | Blocks at 499 ms, releases at 500 ms |
+| Maximum lockout | 1000 ms (`SHIFT_LOCKOUT_MAX_MS`) boundary |
+| Lockout does not extend output | Pulse still ends at `duration_ms` while locked out |
 | Injector bit untouched | `PD4` preserved across the cut pulse |
 
 ---

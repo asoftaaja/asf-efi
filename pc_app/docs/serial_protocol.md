@@ -56,8 +56,8 @@ CRC-8/SMBUS: polynomial `0x07`, initial value `0x00`, no input/output reflection
 | `CMD_TPS_CAL_OPEN`    | `0x12` | PC → ECU | none | ACK/NACK |
 | `CMD_WRITE_ACCEL_PUMP`| `0x15` | PC → ECU | 6 bytes (3× uint16) | ACK/NACK |
 | `CMD_READ_ACCEL_PUMP` | `0x16` | PC → ECU | none | 6-byte accel pump params |
-| `CMD_WRITE_SHIFT_CUT` | `0x17` | PC → ECU | 5 bytes | ACK/NACK |
-| `CMD_READ_SHIFT_CUT`  | `0x18` | PC → ECU | none | 5-byte shift cut params |
+| `CMD_WRITE_SHIFT_CUT` | `0x17` | PC → ECU | 7 bytes | ACK/NACK |
+| `CMD_READ_SHIFT_CUT`  | `0x18` | PC → ECU | none | 7-byte shift cut params |
 
 ---
 
@@ -116,11 +116,11 @@ Unpacked by `decode_pump_config()` into `(PIDParams, PressureConfig, bool)`.
 
 3 × uint16 big-endian: threshold_pct_per_s, extra_us, duration_ms. Packed/unpacked by `encode_accel_pump()` / `decode_accel_pump()`.
 
-### Shift cut — `CMD_WRITE_SHIFT_CUT` / `CMD_READ_SHIFT_CUT` (5 bytes)
+### Shift cut — `CMD_WRITE_SHIFT_CUT` / `CMD_READ_SHIFT_CUT` (7 bytes)
 
-uint8 enabled (0/1), then 2 × uint16 big-endian: duration_ms, min_rpm. Packed/unpacked by `encode_shift_cut()` / `decode_shift_cut()`.
+uint8 enabled (0/1), then 3 × uint16 big-endian: duration_ms, min_rpm, lockout_ms. Packed/unpacked by `encode_shift_cut()` / `decode_shift_cut()`.
 
-The ECU NACKs a write whose `duration_ms` falls outside `SHIFT_CUT_MIN_MS`–`SHIFT_CUT_MAX_MS` (10–100), so `ShiftCutPanel` validates the range before sending.
+The ECU NACKs a write whose `duration_ms` falls outside `SHIFT_CUT_MIN_MS`–`SHIFT_CUT_MAX_MS` (10–100) or whose `lockout_ms` falls outside `SHIFT_LOCKOUT_MIN_MS`–`SHIFT_LOCKOUT_MAX_MS` (500–1000), so `ShiftCutPanel` validates both ranges before sending.
 
 ---
 

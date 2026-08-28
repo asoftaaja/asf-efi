@@ -31,13 +31,14 @@ All multi-byte integers are stored big-endian. Floats are IEEE 754 single-precis
 | 117 | 2 | Accel pump extra: `accel_extra_us` as uint16 BE | 121 | (shared) |
 | 119 | 2 | Accel pump duration: `accel_duration_ms` as uint16 BE | 121 | (shared) |
 | **121** | **1** | **Accel pump magic byte** | — | **0xAE** |
-| 122 | 1 | Shift cut enable: `shift_cut_enabled` as uint8 (0/1) | 127 | `0xAF` |
-| 123 | 2 | Shift cut duration: `shift_cut_duration_ms` as uint16 BE | 127 | (shared) |
-| 125 | 2 | Shift cut min RPM: `shift_cut_min_rpm` as uint16 BE | 127 | (shared) |
-| **127** | **1** | **Shift cut magic byte** | — | **0xAF** |
-| **128** | — | **First free byte** | — | — |
+| 122 | 1 | Shift cut enable: `shift_cut_enabled` as uint8 (0/1) | 129 | `0xB3` |
+| 123 | 2 | Shift cut duration: `shift_cut_duration_ms` as uint16 BE | 129 | (shared) |
+| 125 | 2 | Shift cut min RPM: `shift_cut_min_rpm` as uint16 BE | 129 | (shared) |
+| 127 | 2 | Shift cut lockout: `shift_cut_lockout_ms` as uint16 BE | 129 | (shared) |
+| **129** | **1** | **Shift cut magic byte** | — | **0xB3** |
+| **130** | — | **First free byte** | — | — |
 
-Total used: 128 of 1024 bytes.
+Total used: 130 of 1024 bytes.
 
 ---
 
@@ -47,7 +48,7 @@ Each independently tunable section has its own magic byte. This allows new secti
 
 If the main magic byte (`0xB1`) is absent (blank device or firmware with a changed magic), all data in the main section (addresses 0–81) is re-initialised to defaults. The magic value was changed from `0xB0` when the map was resized from 12×5 to 10×4 to force re-initialisation on existing devices.
 
-Similarly, the axis magic changed from `0xAC` to `0xB2` when the axis bins were reduced.
+Similarly, the axis magic changed from `0xAC` to `0xB2` when the axis bins were reduced, and the shift cut magic changed from `0xAF` to `0xB3` when the lockout parameter grew that section from 6 to 8 bytes.
 
 ---
 
@@ -66,4 +67,4 @@ Each section has a dedicated save function in `eeprom_map.cpp`:
 | `savePumpMode()` | address 108 | `CMD_PUMP_MODE` |
 | `saveTpsCalibration()` | addresses 110–113 | `CMD_TPS_CAL_CLOSED` / `CMD_TPS_CAL_OPEN` |
 | `saveAccelPump()` | addresses 115–120 | `CMD_WRITE_ACCEL_PUMP` |
-| `saveShiftCut()` | addresses 122–126 | `CMD_WRITE_SHIFT_CUT` |
+| `saveShiftCut()` | addresses 122–128 | `CMD_WRITE_SHIFT_CUT` |

@@ -35,8 +35,9 @@ Timer1 (CKPS capture + injector close) and Timer2 (fuel pump PWM) are untouched 
 | `shift_cut_enabled` | 1 | 122 | Master on/off (0 = feature disabled entirely) |
 | `shift_cut_duration_ms` | 50 | 123–124 | Ignition cut pulse length, 10–100 ms |
 | `shift_cut_min_rpm` | 3000 | 125–126 | Below this RPM the switch is ignored |
+| `shift_cut_lockout_ms` | 500 | 127–128 | Switch ignored this long after a shift, 500–1000 ms |
 
-The minimum-RPM gate prevents a bump of the lever at idle or while stationary from cutting ignition.
+The minimum-RPM gate prevents a bump of the lever at idle or while stationary from cutting ignition. The lockout sets a floor on the time between two shifts, so lever bounce or a fast double-tap cannot chain two cuts together.
 
 ### Sampling — `sampleShiftSensor(rpm)`
 
@@ -50,13 +51,15 @@ if (!SHIFT_PRESSED()) {          // switch released -> re-arm
     return;
 }
 
-if (armed && current_rpm >= shift_cut_min_rpm) {
+if (armed && !locked_out && current_rpm >= shift_cut_min_rpm) {
     armed         = false;
     shift_trigger = true;
 }
 ```
 
-Debouncing is free: the switch is read at most once per crank revolution, and re-arming requires actually seeing it released. Holding the lever down therefore produces exactly one cut, no matter how many pulses go by.
+Debouncing works on two levels. The switch is read at most once per crank revolution, and re-arming requires actually seeing it released — so holding the lever down produces exactly one cut, no matter how many pulses go by. On top of that, `locked_out` blocks the switch entirely for `shift_cut_lockout_ms` after each shift, which catches contact bounce that spans a release and a fast double-tap of the lever.
+
+`locked_out` is written by the main loop and read by the ISR. It is a single byte, so the ISR can never catch a torn value and no `cli()`/`sei()` guard is needed — unlike a 32-bit deadline timestamp, which is why the lockout is tracked as a flag rather than an expiry time.
 
 `shift_trigger` is the same ISR-sets/loop-clears pattern as `injection_trigger` in `ckps.cpp`.
 
@@ -67,21 +70,28 @@ Called unconditionally from `loop()` (not gated on `pump_active`), so an in-flig
 ```cpp
 if (shift_trigger) {
     shift_trigger = false;
-    if (!cutting) { IGN_CUT_ON(); cut_start_ms = now_ms; cutting = true; }
+    if (!cutting && !locked_out) {
+        IGN_CUT_ON(); cut_start_ms = now_ms; cutting = true; locked_out = true;
+    }
 }
 if (cutting && (now_ms - cut_start_ms >= shift_cut_duration_ms)) {
     IGN_CUT_OFF();
     cutting = false;
 }
+if (locked_out && (now_ms - cut_start_ms >= shift_cut_lockout_ms)) {
+    locked_out = false;
+}
 ```
 
 A press arriving while a cut is already running is discarded rather than extending or restarting it, bounding the worst-case cut length at `shift_cut_duration_ms`.
+
+The lockout is measured from the same instant the cut starts, not from when it ends, so `shift_cut_lockout_ms` is simply the minimum time between two shifts and the cut itself falls inside that window. The lockout never holds the output high — the pulse still ends at `shift_cut_duration_ms`; only the switch is ignored for the remainder.
 
 **Why `millis()` and not Timer1.** Timer1 runs at prescaler 8 (0.5 µs/tick) and wraps every 32.768 ms, so a 100 ms pulse does not fit in a single `OCR1B` compare. The main loop runs at roughly 1 ms, which is acceptable jitter on a 10–100 ms pulse. This mirrors the `primePump()`/`isPriming()` timing pattern in `pump.cpp`.
 
 ### Reset
 
-`resetShiftCut()` drops the output, clears the trigger flag, and re-arms. It is called from `resetCKPS()`, which the main loop invokes on the `isCKPSTimeout()` safety path — so a stall or a lost CKPS signal always leaves the ignition cut output low.
+`resetShiftCut()` drops the output, clears the trigger flag and the lockout, and re-arms. It is called from `resetCKPS()`, which the main loop invokes on the `isCKPSTimeout()` safety path — so a stall or a lost CKPS signal always leaves the ignition cut output low.
 
 Writing `shift_cut_enabled = 0` over serial also calls `resetShiftCut()`, so disabling the feature never leaves the output stuck high.
 
@@ -89,16 +99,19 @@ Writing `shift_cut_enabled = 0` over serial also calls `resetShiftCut()`, so dis
 
 ## EEPROM
 
-Section at addresses 122–127 with its own magic byte, following the per-section strategy described in [eeprom_map.md](eeprom_map.md):
+Section at addresses 122–129 with its own magic byte, following the per-section strategy described in [eeprom_map.md](eeprom_map.md):
 
 ```
 122  1  shift_cut_enabled (uint8, 0/1)
 123  2  shift_cut_duration_ms (uint16 BE)
 125  2  shift_cut_min_rpm (uint16 BE)
-127  1  Shift cut magic — 0xAF
+127  2  shift_cut_lockout_ms (uint16 BE)
+129  1  Shift cut magic — 0xB3
 ```
 
-`loadFromEEPROM()` writes the compile-time defaults and the magic byte if the magic is absent, so existing controllers pick up the feature without a full EEPROM re-init. On load, `shift_cut_duration_ms` is clamped to 10–100 ms to guard against a corrupted cell. `saveShiftCut()` persists the section.
+`loadFromEEPROM()` writes the compile-time defaults and the magic byte if the magic is absent, so existing controllers pick up the feature without a full EEPROM re-init. On load, `shift_cut_duration_ms` and `shift_cut_lockout_ms` are clamped to their valid ranges to guard against a corrupted cell. `saveShiftCut()` persists the section.
+
+The magic was changed from `0xAF` to `0xB3` when the lockout was added and the section grew from 6 to 8 bytes, so a controller running the earlier build re-initialises this one section to defaults on the next boot.
 
 ---
 
@@ -106,8 +119,8 @@ Section at addresses 122–127 with its own magic byte, following the per-sectio
 
 | ID | Name | Direction | Payload |
 |---|---|---|---|
-| 0x17 | `CMD_WRITE_SHIFT_CUT` | PC→AVR | 5 bytes |
-| 0x18 | `CMD_READ_SHIFT_CUT` | PC→AVR request (empty), AVR→PC response | 5 bytes |
+| 0x17 | `CMD_WRITE_SHIFT_CUT` | PC→AVR | 7 bytes |
+| 0x18 | `CMD_READ_SHIFT_CUT` | PC→AVR request (empty), AVR→PC response | 7 bytes |
 
 Payload layout (both directions):
 
@@ -116,8 +129,9 @@ Payload layout (both directions):
 | 0 | uint8 | enabled (0/1) |
 | 1–2 | uint16 BE | duration_ms |
 | 3–4 | uint16 BE | min_rpm |
+| 5–6 | uint16 BE | lockout_ms |
 
-The write command NACKs on a wrong payload length or a duration outside 10–100 ms — the value is rejected rather than silently clamped, so the tuner reports the error. On success it saves to EEPROM and ACKs.
+The write command NACKs on a wrong payload length, a duration outside 10–100 ms, or a lockout outside 500–1000 ms — values are rejected rather than silently clamped, so the tuner reports the error. On success it saves to EEPROM and ACKs.
 
 No shift cut status is included in the sensor data packet; the feature is not currently telemetered or logged.
 
@@ -128,7 +142,7 @@ No shift cut status is included in the sensor data packet; the feature is not cu
 - `protocol.py` — `CMD_WRITE_SHIFT_CUT` / `CMD_READ_SHIFT_CUT`, `SHIFT_CUT_MIN_MS` / `SHIFT_CUT_MAX_MS`, the `ShiftCutParams` data class, `encode_shift_cut()` / `decode_shift_cut()`
 - `data_model.py` — `ECUState.shift_cut` plus the `device_shift_cut_buf` device snapshot
 - `serial_worker.py` — read on connect into `device_shift_cut_buf`; `CMD_READ_SHIFT_CUT` branch in the command queue handler
-- `gui/shift_cut_panel.py` — "Shift Cut" panel on the ECU Settings tab: an Enabled checkbox, duration and min-RPM entries, and a Send button. Duration is validated against 10–100 ms before anything is sent.
+- `gui/shift_cut_panel.py` — "Shift Cut" panel on the ECU Settings tab: an Enabled checkbox, duration, min-RPM and lockout entries, and a Send button. Duration (10–100 ms) and lockout (500–1000 ms) are validated before anything is sent.
 - `gui/main_window.py` — panel registered in `_tuning_panels` (enable/disable with connection), and included in `_write_all_to_device()`, `_load_device_values()` and the `_diff_device_vs_state()` sync warning
 - `tune_io.py` — `"shift_cut"` object in the tune file JSON; loaded with per-key defaults so tune files written before this feature still open
 
@@ -136,8 +150,8 @@ No shift cut status is included in the sensor data packet; the feature is not cu
 
 ## Tests
 
-`test/test_shift_cut.cpp` drives the `PIND` mock (bit `PD2`) and asserts on the `PORTD` mock (bit `PD7`): enable and min-RPM gating, pulse assertion, exact duration at 10/50/100 ms, one-cut-per-press with the lever held, re-arm after release, no extension on re-trigger, `resetShiftCut()` mid-pulse, and that the injector bit `PD4` is left alone.
+`test/test_shift_cut.cpp` drives the `PIND` mock (bit `PD2`) and asserts on the `PORTD` mock (bit `PD7`): enable and min-RPM gating, pulse assertion, exact duration at 10/50/100 ms, one-cut-per-press with the lever held, re-arm after release, no extension on re-trigger, lockout suppressing a press inside the window, lockout expiry at 500 and 1000 ms, the lockout not extending the output, `resetShiftCut()` mid-pulse, and that the injector bit `PD4` is left alone.
 
 `test/test_ckps.cpp` covers the ISR hook: sampling happens on the startup pulses too, no cut with the switch released, and `resetCKPS()` clearing the output.
 
-`test/test_comms.cpp` covers 0x17/0x18: parameter update and ACK, NACK on out-of-range duration, NACK on wrong length, and the read response layout.
+`test/test_comms.cpp` covers 0x17/0x18: parameter update and ACK, NACK on out-of-range duration, NACK on out-of-range lockout, NACK on wrong length, and the read response layout.

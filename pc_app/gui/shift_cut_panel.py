@@ -7,6 +7,7 @@ from typing import Callable
 from protocol import (
     ShiftCutParams, encode_shift_cut, CMD_WRITE_SHIFT_CUT,
     SHIFT_CUT_MIN_MS, SHIFT_CUT_MAX_MS,
+    SHIFT_LOCKOUT_MIN_MS, SHIFT_LOCKOUT_MAX_MS,
 )
 from data_model import ECUState
 
@@ -26,6 +27,7 @@ class ShiftCutPanel(ttk.LabelFrame):
         params = [
             ("Cut duration (ms):", "_duration_var", str(p.duration_ms)),
             ("Min RPM:",           "_min_rpm_var",  str(p.min_rpm)),
+            ("Lockout (ms):",      "_lockout_var",  str(p.lockout_ms)),
         ]
 
         for i, (label, attr, default) in enumerate(params):
@@ -36,10 +38,10 @@ class ShiftCutPanel(ttk.LabelFrame):
             ttk.Entry(self, textvariable=var, width=10).grid(row=row, column=1, padx=4)
 
         self._send_btn = ttk.Button(self, text="Send", command=self._send)
-        self._send_btn.grid(row=3, column=0, columnspan=2, pady=(6, 0))
+        self._send_btn.grid(row=4, column=0, columnspan=2, pady=(6, 0))
 
         self._status_var = tk.StringVar()
-        ttk.Label(self, textvariable=self._status_var).grid(row=4, column=0, columnspan=2)
+        ttk.Label(self, textvariable=self._status_var).grid(row=5, column=0, columnspan=2)
 
     def _send(self) -> None:
         worker = self._get_worker()
@@ -51,10 +53,15 @@ class ShiftCutPanel(ttk.LabelFrame):
                 enabled=bool(self._enabled_var.get()),
                 duration_ms=int(self._duration_var.get()),
                 min_rpm=int(self._min_rpm_var.get()),
+                lockout_ms=int(self._lockout_var.get()),
             )
             if not (SHIFT_CUT_MIN_MS <= params.duration_ms <= SHIFT_CUT_MAX_MS):
                 self._status_var.set(
                     "Duration must be %d-%d ms" % (SHIFT_CUT_MIN_MS, SHIFT_CUT_MAX_MS))
+                return
+            if not (SHIFT_LOCKOUT_MIN_MS <= params.lockout_ms <= SHIFT_LOCKOUT_MAX_MS):
+                self._status_var.set(
+                    "Lockout must be %d-%d ms" % (SHIFT_LOCKOUT_MIN_MS, SHIFT_LOCKOUT_MAX_MS))
                 return
             if not (0 <= params.min_rpm <= 65535):
                 raise ValueError
@@ -81,6 +88,7 @@ class ShiftCutPanel(ttk.LabelFrame):
         self._enabled_var.set(p.enabled)
         self._duration_var.set(str(p.duration_ms))
         self._min_rpm_var.set(str(p.min_rpm))
+        self._lockout_var.set(str(p.lockout_ms))
 
     def flush_to_state(self) -> None:
         try:
@@ -88,6 +96,7 @@ class ShiftCutPanel(ttk.LabelFrame):
                 enabled=bool(self._enabled_var.get()),
                 duration_ms=int(self._duration_var.get()),
                 min_rpm=int(self._min_rpm_var.get()),
+                lockout_ms=int(self._lockout_var.get()),
             )
         except ValueError:
             pass
