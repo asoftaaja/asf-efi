@@ -38,9 +38,9 @@ The receive state machine in `comms.cpp` (`processSerial()`) is a four-state FSM
 | ID | Name | Direction | Payload |
 |---|---|---|---|
 | `0x01` | `CMD_READ_SENSORS` | PC → ECU (request) | 0 |
-| `0x01` | `CMD_READ_SENSORS` | ECU → PC (response) | 16 bytes — see layout below |
+| `0x01` | `CMD_READ_SENSORS` | ECU → PC (response) | 19 bytes — see layout below |
 
-**Sensor data response layout (16 bytes):**
+**Sensor data response layout (19 bytes):**
 
 | Offset | Size | Field | Units |
 |---|---|---|---|
@@ -55,8 +55,10 @@ The receive state machine in `comms.cpp` (`processSerial()`) is a four-state FSM
 | 11–12 | uint16 BE | injector duty | per-mille (0–1000) |
 | 13 | uint8 | accel pump active | 0 or 1 |
 | 14–15 | uint16 BE | injector open duration | µs (0–25 000) |
+| 16 | uint8 | powerband active | 0 or 1 (1 = ramp fully in) |
+| 17–18 | uint16 BE | powerband multiplier | Q8.8 (256 = 1.00) |
 
-Injector duty is computed as `last_pulse_width_us × 1000 / period_us`, where `period_us` is either 16 667 µs (60 Hz) or `60 000 000 / rpm` (sync mode). Injector open duration is `last_pulse_width_us` transmitted directly.
+Injector duty is computed as `last_pulse_width_us × 1000 / period_us`, where `period_us` is either 16 667 µs (60 Hz) or `60 000 000 / rpm` (sync mode). Injector open duration is `last_pulse_width_us` transmitted directly. The powerband flag is set only when the ramp has fully reached the in-powerband end; the multiplier shows the intermediate ramp position. See [powerband.md](powerband.md).
 
 ### Injection Map
 
@@ -127,6 +129,18 @@ Q8.8 encoding: 256 = 1.0 (no correction).
 | `0x15` | `CMD_WRITE_ACCEL_PUMP` | PC → ECU | 6 bytes same layout; ECU saves, responds ACK |
 
 **Accel pump layout (6 bytes):** threshold (uint16 BE), extra_us (uint16 BE), duration_ms (uint16 BE). See [accel_pump.md](accel_pump.md).
+
+### Powerband / Low-Load Multiplier
+
+| ID | Name | Direction | Payload |
+|---|---|---|---|
+| `0x1A` | `CMD_READ_POWERBAND` | PC → ECU (request) | 0 |
+| `0x1A` | `CMD_READ_POWERBAND` | ECU → PC (response) | 7 bytes — see layout below |
+| `0x19` | `CMD_WRITE_POWERBAND` | PC → ECU | 7 bytes same layout; ECU saves, responds ACK |
+
+**Powerband layout (7 bytes):** multiplier (uint16 BE, Q8.8 — 256 = 1.00), threshold_rpm (uint16 BE), threshold_tps (uint8 percent), delay_rev (uint16 BE). See [powerband.md](powerband.md).
+
+IDs `0x17` and `0x18` are reserved for the shift cut feature on the `feature/shift-cut` branch and are unused here.
 
 ---
 

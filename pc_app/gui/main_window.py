@@ -12,9 +12,9 @@ import tune_io
 from protocol import (
     CMD_WRITE_MAP, CMD_WRITE_AXIS, CMD_WRITE_PID,
     CMD_WRITE_PRESSURE, CMD_WRITE_IAT_CORR, CMD_WRITE_ET_CORR,
-    CMD_WRITE_ACCEL_PUMP,
+    CMD_WRITE_ACCEL_PUMP, CMD_WRITE_POWERBAND,
     encode_map, encode_axis, encode_pid, encode_pressure, encode_corrections,
-    encode_accel_pump,
+    encode_accel_pump, encode_powerband,
 )
 from gui.connection_panel  import ConnectionPanel
 from gui.sensor_panel      import SensorPanel
@@ -190,6 +190,7 @@ class MainWindow(tk.Tk):
             self._dismiss_sync_warning()
 
     def _flush_all(self) -> None:
+        self._map_editor.flush_powerband_to_state()
         self._pid_panel.flush_to_state()
         self._pressure_panel.flush_to_state()
         self._corr_panel.flush_to_state()
@@ -199,6 +200,7 @@ class MainWindow(tk.Tk):
     def _refresh_all(self) -> None:
         self._map_editor.refresh_from_state()
         self._map_editor._refresh_axis_from_state()
+        self._map_editor.refresh_powerband_from_state()
         self._pid_panel.refresh_from_state()
         self._pressure_panel.refresh_from_state()
         self._corr_panel.refresh_from_state()
@@ -229,6 +231,7 @@ class MainWindow(tk.Tk):
         self._state.device_pressure_buf = None
         self._state.device_pump_mode_buf = None
         self._state.device_accel_pump_buf = None
+        self._state.device_powerband_buf = None
         self._dismiss_sync_warning()
         # Poll for completion — worker takes up to ~5 s if any reads time out.
         self._sync_poll_attempts = 0
@@ -300,6 +303,15 @@ class MainWindow(tk.Tk):
                 s.device_accel_pump_buf.extra_us != s.accel_pump.extra_us or
                 s.device_accel_pump_buf.duration_ms != s.accel_pump.duration_ms):
             diffs.append("accel pump")
+        # Compare the multiplier as the Q8.8 value actually sent, so a tune-file
+        # 0.60 does not read as different from the device's quantised 0.5977.
+        if s.device_powerband_buf is not None and (
+                int(round(s.device_powerband_buf.multiplier * 256))
+                != int(round(s.powerband.multiplier * 256)) or
+                s.device_powerband_buf.threshold_rpm != s.powerband.threshold_rpm or
+                s.device_powerband_buf.threshold_tps_pct != s.powerband.threshold_tps_pct or
+                s.device_powerband_buf.delay_rev != s.powerband.delay_rev):
+            diffs.append("powerband")
         return diffs
 
     def _show_sync_warning(self, message: str) -> None:
@@ -338,6 +350,9 @@ class MainWindow(tk.Tk):
         if s.device_accel_pump_buf is not None:
             s.accel_pump = s.device_accel_pump_buf
             self._accel_pump_panel.refresh_from_state()
+        if s.device_powerband_buf is not None:
+            s.powerband = s.device_powerband_buf
+            self._map_editor.refresh_powerband_from_state()
         if show_warning:
             self._dismiss_sync_warning()
 
@@ -354,6 +369,7 @@ class MainWindow(tk.Tk):
         worker.send_command(CMD_WRITE_IAT_CORR,   encode_corrections(s.iat_corr))
         worker.send_command(CMD_WRITE_ET_CORR,    encode_corrections(s.et_corr))
         worker.send_command(CMD_WRITE_ACCEL_PUMP, encode_accel_pump(s.accel_pump))
+        worker.send_command(CMD_WRITE_POWERBAND,  encode_powerband(s.powerband))
         # Update device buffers to reflect what was just written, so future
         # tune file loads don't falsely flag a mismatch.
         s.device_map_buf      = copy.deepcopy(s.inj_map)
@@ -365,6 +381,7 @@ class MainWindow(tk.Tk):
         s.device_pressure_buf = copy.deepcopy(s.pressure)
         s.device_pump_mode_buf = s.pump_mode_always_on
         s.device_accel_pump_buf = copy.deepcopy(s.accel_pump)
+        s.device_powerband_buf  = copy.deepcopy(s.powerband)
         self._dismiss_sync_warning()
 
     # ── Enable/disable tuning panels ─────────────────────────────────────────

@@ -23,8 +23,12 @@
 //  114         1   TPS cal magic byte — 0xAD when TPS cal section has been initialised
 //  115         6   Accel pump: threshold, extra_us, duration_ms as uint16 BE
 //  121         1   Accel pump magic — 0xAE
+//  122         8   RESERVED for the shift cut feature (feature/shift-cut branch)
+//  130         7   Powerband: multiplier Q8.8 + threshold_rpm as uint16 BE,
+//                  threshold_tps as uint8, delay_rev as uint16 BE
+//  137         1   Powerband magic — 0xB4
 //  -------  ----
-//  122 bytes total
+//  138 bytes total
 
 #define EEPROM_ADDR_INJ_MAP        0
 #define EEPROM_ADDR_PID           40
@@ -47,10 +51,26 @@
 //  117         2   accel_extra_us (uint16 BE)
 //  119         2   accel_duration_ms (uint16 BE)
 //  121         1   Accel pump magic — 0xAE
-//  122 bytes total
 #define EEPROM_ADDR_ACCEL_PUMP        115
 #define EEPROM_ADDR_ACCEL_PUMP_MAGIC  121
 #define EEPROM_ACCEL_PUMP_MAGIC_VALUE 0xAE
+//  122–129 are left free for the shift cut feature developed on feature/shift-cut,
+//  so that branch merges without renumbering or forcing an EEPROM re-init.
+//  130         2   powerband_multiplier (uint16 BE, Q8.8 — 256 = 1.00)
+//  132         2   powerband_threshold_rpm (uint16 BE)
+//  134         1   powerband_threshold_tps (uint8, percent)
+//  135         2   powerband_delay_rev (uint16 BE)
+//  137         1   Powerband magic — 0xB4
+//  138 bytes total
+#define EEPROM_ADDR_POWERBAND         130
+#define EEPROM_ADDR_POWERBAND_MAGIC   137
+#define EEPROM_POWERBAND_MAGIC_VALUE 0xB4
+
+// Range limits applied when loading the powerband section (guards corrupt cells)
+#define POWERBAND_MAX_MULTIPLIER      512   // 2.00 in Q8.8
+#define POWERBAND_MAX_THRESHOLD_RPM 20000
+#define POWERBAND_MAX_THRESHOLD_TPS   100
+#define POWERBAND_MAX_DELAY_REV      2000
 
 void loadFromEEPROM();       // load all sections; writes defaults if uninitialised
 void saveInjectionMap();
@@ -62,3 +82,4 @@ void saveAxisBreakpoints();
 void savePumpMode();
 void saveTpsCalibration();
 void saveAccelPump();
+void savePowerband();

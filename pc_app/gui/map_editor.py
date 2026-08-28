@@ -13,9 +13,10 @@ from typing import Callable, List, Optional, Tuple
 from protocol import (
     RPM_BINS, TPS_BINS,
     RPM_BREAKPOINTS, TPS_BREAKPOINTS,
-    encode_map, encode_axis,
+    encode_map, encode_axis, encode_powerband,
     nearest_rpm_bin, nearest_tps_bin,
     CMD_WRITE_MAP, CMD_READ_MAP, CMD_WRITE_AXIS, CMD_READ_AXIS,
+    CMD_WRITE_POWERBAND,
 )
 from data_model import ECUState
 
@@ -47,6 +48,7 @@ class MapEditor(ttk.LabelFrame):
         self._build_grid()
         self._build_buttons()
         self._build_axis_editor()
+        self._build_powerband_editor()
 
     # ── Build ─────────────────────────────────────────────────────────────────
 
@@ -154,6 +156,44 @@ class MapEditor(ttk.LabelFrame):
 
         self._axis_status_var = tk.StringVar()
         ttk.Label(axis_btn_frame, textvariable=self._axis_status_var, width=20).grid(
+            row=0, column=2, padx=8)
+
+    def _build_powerband_editor(self) -> None:
+        """Build the powerband / low-load multiplier settings below the axis editor."""
+        frame = ttk.LabelFrame(self, text="Powerband / Low-Load Multiplier", padding=4)
+        frame.grid(row=RPM_BINS + 3, column=0, columnspan=TPS_BINS + 1,
+                   pady=(10, 0), sticky="ew")
+
+        pb = self._state.powerband
+        # (label, attribute name, initial value) — laid out in two columns of pairs
+        params = [
+            ("Below-powerband multiplier:", "_pb_mult_var",  "{:.2f}".format(pb.multiplier)),
+            ("Threshold RPM:",              "_pb_rpm_var",   str(pb.threshold_rpm)),
+            ("Threshold TPS (%):",          "_pb_tps_var",   str(pb.threshold_tps_pct)),
+            ("Activation delay (rev):",     "_pb_delay_var", str(pb.delay_rev)),
+        ]
+        for i, (label, attr, default) in enumerate(params):
+            row, col = i // 2, (i % 2) * 2
+            ttk.Label(frame, text=label, anchor="e").grid(
+                row=row, column=col, padx=(6, 2), pady=2, sticky="e")
+            var = tk.StringVar(value=default)
+            setattr(self, attr, var)
+            ttk.Entry(frame, textvariable=var, width=8, justify="center").grid(
+                row=row, column=col + 1, padx=(0, 12), pady=2, sticky="w")
+
+        pb_btn_frame = ttk.Frame(frame)
+        pb_btn_frame.grid(row=2, column=0, columnspan=4, pady=(4, 0), sticky="w")
+
+        self._read_pb_btn = ttk.Button(pb_btn_frame, text="Read Powerband from ECU",
+                                       command=self._read_powerband)
+        self._read_pb_btn.grid(row=0, column=0, padx=4)
+
+        self._send_pb_btn = ttk.Button(pb_btn_frame, text="Send Powerband to ECU",
+                                       command=self._send_powerband)
+        self._send_pb_btn.grid(row=0, column=1, padx=4)
+
+        self._pb_status_var = tk.StringVar()
+        ttk.Label(pb_btn_frame, textvariable=self._pb_status_var, width=20).grid(
             row=0, column=2, padx=8)
 
     # ── Cell editing ──────────────────────────────────────────────────────────
@@ -364,12 +404,105 @@ class MapEditor(ttk.LabelFrame):
         self._axis_status_var.set("Sending...")
         self.after(100, lambda: self._check_future(fut, self._send_axis_btn, self._axis_status_var))
 
+    # ── Powerband settings ────────────────────────────────────────────────────
+
+    def _parse_powerband(self) -> Optional[dict]:
+        """Validate the four powerband entries. Returns None (and sets the status
+        label) if any field is out of range."""
+        try:
+            mult = float(self._pb_mult_var.get().strip())
+            if not (0.0 <= mult <= 2.00):
+                raise ValueError
+        except ValueError:
+            self._pb_status_var.set("Bad multiplier")
+            return None
+        try:
+            rpm = int(self._pb_rpm_var.get().strip())
+            if not (0 <= rpm <= 20000):
+                raise ValueError
+        except ValueError:
+            self._pb_status_var.set("Bad threshold RPM")
+            return None
+        try:
+            tps = int(self._pb_tps_var.get().strip())
+            if not (0 <= tps <= 100):
+                raise ValueError
+        except ValueError:
+            self._pb_status_var.set("Bad threshold TPS")
+            return None
+        try:
+            delay = int(self._pb_delay_var.get().strip())
+            if not (0 <= delay <= 2000):
+                raise ValueError
+        except ValueError:
+            self._pb_status_var.set("Bad delay")
+            return None
+        return {"multiplier": mult, "threshold_rpm": rpm,
+                "threshold_tps_pct": tps, "delay_rev": delay}
+
+    def flush_powerband_to_state(self) -> None:
+        """Commit valid powerband entries to ECU state (called before a tune save)."""
+        vals = self._parse_powerband()
+        if vals is None:
+            return
+        pb = self._state.powerband
+        pb.multiplier        = vals["multiplier"]
+        pb.threshold_rpm     = vals["threshold_rpm"]
+        pb.threshold_tps_pct = vals["threshold_tps_pct"]
+        pb.delay_rev         = vals["delay_rev"]
+
+    def _send_powerband(self) -> None:
+        worker = self._get_worker()
+        if worker is None:
+            self._pb_status_var.set("Not connected")
+            return
+        vals = self._parse_powerband()
+        if vals is None:
+            return
+
+        self.flush_powerband_to_state()
+        payload = encode_powerband(self._state.powerband)
+        fut = worker.send_command(CMD_WRITE_POWERBAND, payload)
+        self._send_pb_btn.configure(state="disabled")
+        self._pb_status_var.set("Sending...")
+        self.after(100, lambda: self._check_future(fut, self._send_pb_btn, self._pb_status_var))
+
+    def _read_powerband(self) -> None:
+        worker = self._get_worker()
+        if worker is None:
+            self._pb_status_var.set("Not connected")
+            return
+        fut = worker.read_powerband()
+        self._read_pb_btn.configure(state="disabled")
+        self._pb_status_var.set("Reading...")
+        self.after(100, lambda: self._check_read_powerband_future(fut))
+
+    def _check_read_powerband_future(self, fut) -> None:
+        if not fut.done():
+            self.after(100, lambda: self._check_read_powerband_future(fut))
+            return
+        self._read_pb_btn.configure(state="normal")
+        ok, err = fut.result()
+        if ok:
+            self.refresh_powerband_from_state()
+            self._pb_status_var.set("Powerband loaded")
+        else:
+            self._pb_status_var.set(f"Failed: {err}")
+
     # ── Sync display from state ───────────────────────────────────────────────
 
     def refresh_from_state(self) -> None:
         for r in range(RPM_BINS):
             for c in range(TPS_BINS):
                 self._vars[r][c].set(str(self._state.inj_map[r][c]))
+
+    def refresh_powerband_from_state(self) -> None:
+        """Update the powerband Entry widgets from ECUState."""
+        pb = self._state.powerband
+        self._pb_mult_var.set("{:.2f}".format(pb.multiplier))
+        self._pb_rpm_var.set(str(pb.threshold_rpm))
+        self._pb_tps_var.set(str(pb.threshold_tps_pct))
+        self._pb_delay_var.set(str(pb.delay_rev))
 
     def _refresh_axis_from_state(self) -> None:
         """Update axis Entry widgets and map grid labels from ECUState."""

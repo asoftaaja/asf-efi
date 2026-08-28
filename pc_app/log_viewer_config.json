@@ -8,6 +8,7 @@
         "Temperature": true,
         "Battery Voltage": true,
         "Duty Cycles": true,
+        "Powerband Multiplier": true,
         "Active Flags": false
     }
 }

@@ -33,6 +33,12 @@ Files are plain JSON, pretty-printed with 2-space indentation. There is no versi
     "extra_us": 500,
     "duration_ms": 300
   },
+  "powerband": {
+    "multiplier": 0.5,                       // below-powerband injection multiplier
+    "threshold_rpm": 9000,
+    "threshold_tps_pct": 30,                 // integer percent, not a fraction
+    "delay_rev": 50                          // crank revolutions for a full ramp
+  },
   "alarms": {
     "et_threshold": 110.0,
     "vbat_threshold": 11.5
@@ -52,6 +58,7 @@ Implemented in `tune_io.py`.
 - `rpm_axis`, `tps_axis` → compile-time defaults from `protocol.py`
 - `pump_mode_always_on` → `False`
 - `accel_pump` → threshold 50 %/s, extra 500 µs, duration 300 ms
+- `powerband` → multiplier 0.5, threshold 9000 RPM / 30 %, delay 50 rev
 - `alarms` → ET threshold 110 °C, VBAT threshold 11.5 V
 
 After loading, the path is written to `tunefiles/.last`.

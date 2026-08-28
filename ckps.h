@@ -16,3 +16,13 @@ void     initCKPS();
 uint16_t getRPM();
 bool     isCKPSTimeout();
 void     resetCKPS();
+
+/**
+ * @brief Free-running crank revolution counter (one count per CKPS pulse).
+ *
+ * Wraps at 256; consumers track progress with wrap-safe uint8_t subtraction.
+ * Not cleared by resetCKPS() — it is a monotonic tick source, not engine state.
+ *
+ * @return Current revolution count.
+ */
+uint8_t  getCrankRevs();

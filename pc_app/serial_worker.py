@@ -17,9 +17,10 @@ import serial.tools.list_ports
 from protocol import (
     PKT_START, CMD_READ_SENSORS, CMD_READ_MAP, CMD_READ_AXIS,
     CMD_READ_PUMP_CONFIG, CMD_READ_CORRECTIONS, CMD_READ_ACCEL_PUMP,
-    CMD_ACK, CMD_NACK,
+    CMD_READ_POWERBAND, CMD_ACK, CMD_NACK,
     build_packet, parse_packet, decode_sensor_data, decode_map, decode_axis,
-    decode_pump_config, decode_corrections, decode_accel_pump, SERIAL_BAUD,
+    decode_pump_config, decode_corrections, decode_accel_pump,
+    decode_powerband, SERIAL_BAUD,
 )
 from data_model import ECUState
 
@@ -68,6 +69,10 @@ class SerialWorker(threading.Thread):
     def read_axis(self) -> concurrent.futures.Future:
         """Request axis breakpoints from the ECU. Future resolves to (success: bool, error | None)."""
         return self.send_command(CMD_READ_AXIS)
+
+    def read_powerband(self) -> concurrent.futures.Future:
+        """Request powerband parameters from the ECU. Future resolves to (success: bool, error | None)."""
+        return self.send_command(CMD_READ_POWERBAND)
 
     # ── Main loop ────────────────────────────────────────────────────────────
 
@@ -126,6 +131,14 @@ class SerialWorker(threading.Thread):
         except (serial.SerialException, ValueError):
             pass  # non-fatal; panel will show default values
 
+        try:
+            self._serial.write(build_packet(CMD_READ_POWERBAND))
+            pkt = self._read_packet(WRITE_TIMEOUT)
+            if pkt and pkt[0] == CMD_READ_POWERBAND:
+                self._state.device_powerband_buf = decode_powerband(pkt[1])
+        except (serial.SerialException, ValueError):
+            pass  # non-fatal; panel will show default values
+
         self._state.config_fresh.set()
         self._state.device_read_complete.set()
 
@@ -181,6 +194,12 @@ class SerialWorker(threading.Thread):
                 elif cmd == CMD_READ_ACCEL_PUMP and pkt[0] == CMD_READ_ACCEL_PUMP:
                     try:
                         self._state.accel_pump = decode_accel_pump(pkt[1])
+                        fut.set_result((True, None))
+                    except ValueError as exc:
+                        fut.set_result((False, str(exc)))
+                elif cmd == CMD_READ_POWERBAND and pkt[0] == CMD_READ_POWERBAND:
+                    try:
+                        self._state.powerband = decode_powerband(pkt[1])
                         fut.set_result((True, None))
                     except ValueError as exc:
                         fut.set_result((False, str(exc)))

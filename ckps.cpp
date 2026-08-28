@@ -10,6 +10,10 @@ static volatile uint8_t  ovf_count      = 0;   // Timer1 overflows between two c
 static volatile uint8_t  pulse_count    = 0;   // pulses since startup (gate for pump enable)
 static volatile uint32_t last_pulse_ms  = 0;   // millis() at last capture (timeout detection)
 
+// Free-running revolution counter. uint8_t so the main loop can read it
+// atomically without disabling interrupts; consumers use wrap-safe subtraction.
+static volatile uint8_t  crank_revs     = 0;
+
 void initCKPS()
 {
     pinMode(PIN_CKPS, INPUT);
@@ -29,6 +33,11 @@ uint16_t getRPM()
 bool isCKPSTimeout()
 {
     return (millis() - last_pulse_ms) > CKPS_TIMEOUT_MS;
+}
+
+uint8_t getCrankRevs()
+{
+    return crank_revs;
 }
 
 void resetCKPS()
@@ -70,6 +79,9 @@ ISR(TIMER1_CAPT_vect)
     }
 
     last_pulse_ms = millis();
+
+    // Counted before the startup gate below so cranking revolutions are included
+    crank_revs++;
 
     if (pulse_count < 2) {
         pulse_count++;

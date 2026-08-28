@@ -69,8 +69,14 @@ class SensorPanel(ttk.LabelFrame):
         self._accel_label = tk.Label(self, text="---", font=FONT, anchor="w", foreground="gray")
         self._accel_label.grid(row=accel_row, column=1, sticky="w", padx=(0, 6), pady=1)
 
+        pband_row = accel_row + 1
+        ttk.Label(self, text="PBAND:", anchor="e").grid(
+            row=pband_row, column=0, sticky="e", padx=(6, 2), pady=1)
+        self._pband_label = tk.Label(self, text="---", font=FONT, anchor="w", foreground="gray")
+        self._pband_label.grid(row=pband_row, column=1, sticky="w", padx=(0, 6), pady=1)
+
         # Logging controls
-        log_row = accel_row + 1
+        log_row = pband_row + 1
         ttk.Separator(self, orient="horizontal").grid(
             row=log_row, column=0, columnspan=2, sticky="ew", pady=(8, 4))
         self._log_btn = ttk.Button(self, text="Start Log", command=self._toggle_log,
@@ -150,6 +156,8 @@ class SensorPanel(ttk.LabelFrame):
                 else:
                     self._accel_label.config(text="---", foreground="gray")
 
+                self._update_powerband(data)
+
                 self._update_alarms(data)
 
                 if self._map_editor:
@@ -160,6 +168,22 @@ class SensorPanel(ttk.LabelFrame):
 
         self._check_log_error()
         self._schedule()
+
+    def _update_powerband(self, data) -> None:
+        """Show the powerband state: fully in, ramping between, or fully out.
+
+        The flag alone only reports the ends of the ramp, so the multiplier is
+        compared against the configured below-powerband value to detect the
+        transition in between.
+        """
+        mult = data.powerband_mult
+        below = self._state.powerband.multiplier
+        if data.powerband_active:
+            self._pband_label.config(text=f"ON {mult:.2f}", foreground="#2E8B57")
+        elif abs(mult - below) > 0.005:
+            self._pband_label.config(text=f"RAMP {mult:.2f}", foreground="#FF8C00")
+        else:
+            self._pband_label.config(text=f"--- {mult:.2f}", foreground="gray")
 
     def _check_log_error(self) -> None:
         """If the logger worker died on an I/O error, surface it in the UI."""
