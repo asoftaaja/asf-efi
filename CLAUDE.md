@@ -40,3 +40,4 @@ Detailed implementation notes for specific features are kept in the `docs/` fold
 | [pc_app/docs/injection_map.md](pc_app/docs/injection_map.md) | PC app map editor — grid editing, live cursor, axis breakpoint editor, read/write flow |
 | [pc_app/docs/tune_file.md](pc_app/docs/tune_file.md) | PC app tune files — JSON format, load/save, auto-load, sync warning integration |
 | [pc_app/docs/data_logging.md](pc_app/docs/data_logging.md) | PC app data logging — CSV format, Start/Stop log button, log viewer app |
+| [pc_app/docs/dyno_sync.md](pc_app/docs/dyno_sync.md) | PC app dyno sync — TCP/JSON-lines server that hands the current injection map to the dyno controller app, config file, protocol, thread model |

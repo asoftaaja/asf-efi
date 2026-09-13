@@ -9,6 +9,7 @@ from typing import Optional
 from data_model import ECUState
 from serial_worker import SerialWorker
 import tune_io
+import dyno_sync_server
 from protocol import (
     CMD_WRITE_MAP, CMD_WRITE_AXIS, CMD_WRITE_PID,
     CMD_WRITE_PRESSURE, CMD_WRITE_IAT_CORR, CMD_WRITE_ET_CORR,
@@ -36,10 +37,12 @@ class MainWindow(tk.Tk):
 
         self._state = ECUState()
         self._worker: Optional[SerialWorker] = None
+        self._sync_server: Optional[dyno_sync_server.DynoSyncServer] = None
 
         self._build_ui()
         self._set_panels_enabled(False)
         self._autoload_tunefile()
+        self._start_dyno_sync_server()
 
     # ── Layout ────────────────────────────────────────────────────────────────
 
@@ -149,6 +152,11 @@ class MainWindow(tk.Tk):
         self._corr_panel = CorrectionPanel(corr_tab, self._state, self._get_worker)
         self._corr_panel.pack(padx=8, pady=8)
 
+        # Dyno sync status line (server listen state; polled, never set from the server thread)
+        self._sync_status_var = tk.StringVar(value="Dyno sync: disabled")
+        ttk.Label(self, textvariable=self._sync_status_var, anchor="w",
+                  foreground="#666666").pack(fill="x", padx=12, pady=(0, 4))
+
         # Collect tuning panels for enable/disable
         self._tuning_panels = [
             self._map_editor,
@@ -160,6 +168,28 @@ class MainWindow(tk.Tk):
             self._alarm_panel,
             self._write_all_btn,
         ]
+
+    # ── Dyno sync server ──────────────────────────────────────────────────────
+
+    def _start_dyno_sync_server(self) -> None:
+        """Start the TCP server that hands the injection map to the dyno app.
+
+        Configured by pc_app/dyno_sync_config.json; see docs/dyno_sync.md.
+        """
+        cfg = dyno_sync_server.load_config()
+        if not cfg.get("enabled", True):
+            self._sync_status_var.set("Dyno sync: disabled in dyno_sync_config.json")
+            return
+        self._sync_server = dyno_sync_server.DynoSyncServer(
+            self._state, host=str(cfg["host"]), port=int(cfg["port"]))
+        self._sync_server.start()
+        self.after(500, self._poll_dyno_sync_status)
+
+    def _poll_dyno_sync_status(self) -> None:
+        if self._sync_server is None:
+            return
+        self._sync_status_var.set(self._sync_server.status_text)
+        self.after(1000, self._poll_dyno_sync_status)
 
     # ── Tune file helpers ─────────────────────────────────────────────────────
 
