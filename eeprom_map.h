@@ -23,7 +23,8 @@
 //  114         1   TPS cal magic byte — 0xAD when TPS cal section has been initialised
 //  115         6   Accel pump: threshold, extra_us, duration_ms as uint16 BE
 //  121         1   Accel pump magic — 0xAE
-//  122         8   RESERVED for the shift cut feature (feature/shift-cut branch)
+//  122         7   Shift cut: enabled uint8 + duration_ms, min_rpm, lockout_ms as uint16 BE
+//  129         1   Shift cut magic — 0xB3
 //  130         7   Powerband: multiplier Q8.8 + threshold_rpm as uint16 BE,
 //                  threshold_tps as uint8, delay_rev as uint16 BE
 //  137         1   Powerband magic — 0xB4
@@ -54,8 +55,15 @@
 #define EEPROM_ADDR_ACCEL_PUMP        115
 #define EEPROM_ADDR_ACCEL_PUMP_MAGIC  121
 #define EEPROM_ACCEL_PUMP_MAGIC_VALUE 0xAE
-//  122–129 are left free for the shift cut feature developed on feature/shift-cut,
-//  so that branch merges without renumbering or forcing an EEPROM re-init.
+//  122         1   shift_cut_enabled (uint8, 0/1)
+//  123         2   shift_cut_duration_ms (uint16 BE)
+//  125         2   shift_cut_min_rpm (uint16 BE)
+//  127         2   shift_cut_lockout_ms (uint16 BE)
+//  129         1   Shift cut magic — 0xB3
+#define EEPROM_ADDR_SHIFT_CUT         122
+#define EEPROM_ADDR_SHIFT_CUT_MAGIC   129
+#define EEPROM_SHIFT_CUT_MAGIC_VALUE 0xB3  // changed from 0xAF — lockout added, section grew
+
 //  130         2   powerband_multiplier (uint16 BE, Q8.8 — 256 = 1.00)
 //  132         2   powerband_threshold_rpm (uint16 BE)
 //  134         1   powerband_threshold_tps (uint8, percent)
@@ -82,4 +90,5 @@ void saveAxisBreakpoints();
 void savePumpMode();
 void saveTpsCalibration();
 void saveAccelPump();
+void saveShiftCut();
 void savePowerband();

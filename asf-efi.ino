@@ -3,6 +3,7 @@
 #include "injection.h"
 #include "accel_pump.h"
 #include "powerband.h"
+#include "shift_cut.h"
 #include "pump.h"
 #include "comms.h"
 #include "eeprom_map.h"
@@ -103,6 +104,9 @@ void setup()
 {
     loadFromEEPROM();
 
+    // Before initCKPS() — the capture ISR samples the shift sensor
+    initShiftCut();
+
     initCKPS();
     initInjection();
     initPump();
@@ -158,10 +162,13 @@ void loop()
         }
     }
 
-    // 5. LED indicators
+    // 5. Shift cut — unconditional so an in-flight pulse always gets terminated
+    updateShiftCut(millis());
+
+    // 6. LED indicators
     updateLEDs();
 
-    // 6. Serial communication
+    // 7. Serial communication
     processSerial();
 
 #if 0

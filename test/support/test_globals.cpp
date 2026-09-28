@@ -9,6 +9,7 @@
  *   last_injection_ms/pulse_width -> injection.cpp
  *   injection_trigger             -> ckps.cpp
  *   accel_threshold_*             -> accel_pump.cpp
+ *   shift_cut_*                   -> shift_cut.cpp
  *
  * This file is placed in test/support/ so Ceedling links it with every test.
  */
@@ -57,6 +58,7 @@ volatile uint8_t  TCCR1B  = 0;
 volatile uint8_t  TIFR1   = 0;
 volatile uint8_t  TIMSK1  = 0;
 volatile uint8_t  PORTD   = 0;
+volatile uint8_t  PIND    = 0xFF;  // pull-ups: all inputs read high when idle
 volatile uint8_t  SREG_reg = 0;
 
 /* ---------- Mock state for Arduino API ---------- */

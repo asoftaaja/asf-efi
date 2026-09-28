@@ -6,7 +6,8 @@ The GUI thread reads; the serial worker thread writes.
 import threading
 from typing import List, Optional
 from protocol import (
-    SensorData, PIDParams, PressureConfig, AccelPumpParams, PowerbandParams,
+    SensorData, PIDParams, PressureConfig, AccelPumpParams,
+    ShiftCutParams, PowerbandParams,
     RPM_BINS, TPS_BINS, IAT_BINS, ET_BINS,
     RPM_BREAKPOINTS, TPS_BREAKPOINTS,
 )
@@ -29,6 +30,7 @@ class ECUState:
         self.pressure = PressureConfig()
         self.accel_pump = AccelPumpParams()
         self.powerband = PowerbandParams()
+        self.shift_cut = ShiftCutParams()
         self.pump_mode_always_on: bool = False
         self.iat_corr = [1.0] * IAT_BINS   # type: List[float]
         self.et_corr  = [1.0] * ET_BINS    # type: List[float]
@@ -47,6 +49,7 @@ class ECUState:
         self.device_pump_mode_buf = None  # type: Optional[bool]
         self.device_accel_pump_buf = None  # type: Optional[AccelPumpParams]
         self.device_powerband_buf  = None  # type: Optional[PowerbandParams]
+        self.device_shift_cut_buf  = None  # type: Optional[ShiftCutParams]
 
         # ── Alarm thresholds (local to PC app, not sent to device) ───────────
         self.et_alarm_threshold: float = 70.0    # °C — alert if ET exceeds this

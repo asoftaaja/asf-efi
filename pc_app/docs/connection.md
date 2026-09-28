@@ -23,8 +23,9 @@ The connection subsystem has three parts: the `ConnectionPanel` GUI widget that 
 | Temperature corrections | `CMD_READ_CORRECTIONS` | `ECUState.device_iat_corr_buf`, `device_et_corr_buf` |
 | Accel pump params | `CMD_READ_ACCEL_PUMP` | `ECUState.device_accel_pump_buf` |
 | Powerband params | `CMD_READ_POWERBAND` | `ECUState.device_powerband_buf` |
+| Shift cut params | `CMD_READ_SHIFT_CUT` | `ECUState.device_shift_cut_buf` |
 
-All six reads are wrapped in `try/except` — a failed read is non-fatal and the panel will show default values. After all reads, `ECUState.config_fresh` is set.
+All seven reads are wrapped in `try/except` — a failed read is non-fatal and the panel will show default values. After all reads, `ECUState.config_fresh` is set.
 
 5. `MainWindow._on_connect()` enables all tuning panels and schedules `_check_map_loaded()` 1.5 s later to allow the startup reads to complete before checking for sync mismatches.
 
@@ -87,6 +88,6 @@ When the device map/axis/corrections loaded at startup differ from the values al
 
 `_buffers_match_state()` compares the `device_*_buf` fields against the live state fields. The check runs once at 1.5 s after connect and again when a tune file is loaded while connected.
 
-**Write all to device** — calls `_write_all_to_device()`, which sends map, axis, PID, pressure, corrections, accel pump, and powerband in sequence and updates the device buffers to match, clearing the warning.
+**Write all to device** — calls `_write_all_to_device()`, which sends map, axis, PID, pressure, corrections, accel pump, shift cut, and powerband in sequence and updates the device buffers to match, clearing the warning.
 
 **Load from device** — copies the `device_*_buf` values into the live state and refreshes all editor panels, clearing the warning.

@@ -15,6 +15,10 @@ An open-loop fuel injection ECU for a small single-cylinder engine, built on an 
 | CKPS | D8 | Falling edge, 1 pulse per revolution (ICP1) |
 | Injector | D4 | High = open |
 | Fuel pump | D3 | PWM via Timer2 OC2B |
+| Shift sensor | D2 | INPUT_PULLUP, active low (switch to ground) |
+| Ignition cut | D7 | High = cut |
+| Battery voltage | A7 | Resistor divider |
+| Serial | D0/D1 | UART to PC app, 115200 baud |
 | Green LED | D12 | System status |
 | Red LED | D13 | Injector activity |
 

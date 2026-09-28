@@ -9,6 +9,7 @@
  *   - isCKPSTimeout() timing
  *   - resetCKPS()
  *   - getCrankRevs() free-running revolution counter
+ *   - shift sensor sampling from the capture ISR
  *
  * How ISRs are called:
  *   The mock avr/interrupt.h defines  ISR(vec) -> void vec(void)
@@ -17,6 +18,7 @@
 
 #include "unity.h"
 #include "ckps.h"           // module under test (auto-links ckps.cpp)
+#include "shift_cut.h"      // sampled from the capture ISR (auto-links shift_cut.cpp)
 
 /* Globals provided by test_globals.cpp (always linked via test/support) */
 extern volatile uint16_t rpm;
@@ -48,6 +50,12 @@ static void advance_past_startup(void)
 /* ------------------------------------------------------------------ */
 void setUp(void)
 {
+    PORTD = 0;
+    PIND  = 0xFF;             // shift switch released (pull-up)
+    shift_cut_enabled     = 1;
+    shift_cut_duration_ms = 50;
+    shift_cut_min_rpm     = 3000;
+
     resetCKPS();
     pump_active     = false;
     rpm             = 0;
@@ -315,4 +323,40 @@ void test_crank_revs_wraps_at_256(void)
     uint8_t before = getCrankRevs();
     for (int i = 0; i < 256; i++) TIMER1_CAPT_vect();
     TEST_ASSERT_EQUAL_UINT8(before, getCrankRevs());
+}
+/* resetCKPS() must also drop the ignition cut output (engine stalled) */
+void test_reset_ckps_clears_shift_cut(void)
+{
+    PORTD |= (1 << PD7);      // pretend a cut is in progress
+    resetCKPS();
+    TEST_ASSERT_FALSE(PORTD & (1 << PD7));
+}
+
+/* ================================================================== */
+/* Shift sensor sampling from the capture ISR                          */
+/* ================================================================== */
+
+/* The switch is sampled on every pulse, including the two startup pulses
+ * that return early from the pump-enable gate. */
+void test_capture_isr_samples_shift_sensor_on_startup_pulses(void)
+{
+    resetCKPS();
+    rpm = 6000;
+    PIND &= ~(1 << PD2);      // switch pressed
+    ICR1 = 20000;
+
+    TIMER1_CAPT_vect();       // pulse 1 -- hits the pump gate early return
+    updateShiftCut(0);
+
+    TEST_ASSERT_TRUE(PORTD & (1 << PD7));
+}
+
+void test_capture_isr_does_not_cut_with_switch_released(void)
+{
+    advance_past_startup();
+    ICR1 = 20000;
+    TIMER1_CAPT_vect();       // 6000 rpm, switch released
+    updateShiftCut(0);
+
+    TEST_ASSERT_FALSE(PORTD & (1 << PD7));
 }
