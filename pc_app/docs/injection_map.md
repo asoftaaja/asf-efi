@@ -93,7 +93,9 @@ A `ttk.LabelFrame` below the map grid contains two rows of `ttk.Entry` widgets �
 - RPM values: must be integers 0–65535, must be strictly ascending.
 - TPS values: must be floats 0.0–100.0, must be strictly ascending.
 
-If validation passes, values are written to `ECUState.rpm_axis` / `ECUState.tps_axis`, the map grid labels are updated, and `encode_axis()` packs the payload for `CMD_WRITE_AXIS`.
+If validation passes, values are written to `ECUState.rpm_axis` / `ECUState.tps_axis`, the entries and map grid labels are refreshed, and `encode_axis()` packs the payload for `CMD_WRITE_AXIS`.
+
+The wire carries the TPS axis as `uint8` percent, so each entry is snapped to whole percent by `quantize_tps()` on parse and the entries are re-rendered from state — a typed `33.5` visibly becomes the `34` the ECU will store, rather than silently disagreeing with it afterwards.
 
 ### Read Axis from ECU
 
@@ -121,6 +123,8 @@ A `ttk.LabelFrame` below the axis editor (grid row `RPM_BINS + 3`) holds the fou
 ### Validation on send
 
 All four fields are parsed by `_parse_powerband()` before anything is transmitted. An unparseable or out-of-range value aborts the send, reports which field was bad in the status label, and leaves `ECUState` untouched.
+
+The multiplier is Q8.8 on the wire, so `_parse_powerband()` snaps it with `quantize_q8_8()` and the entry is displayed by `format_q8_8()` at three decimals. A typed `0.60` therefore shows as `0.602` — the value the ECU actually holds. Displaying it at two decimals instead was doubly wrong: it hid the quantisation, and `flush_powerband_to_state()` re-parses the *displayed* string, so the rounded `0.60` was written back over the device's real `0.598`.
 
 ### Read / Send
 

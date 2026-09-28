@@ -6,7 +6,8 @@ from typing import Optional
 
 from protocol import (PIDParams, PressureConfig, AccelPumpParams,
                       ShiftCutParams, PowerbandParams,
-                      RPM_BREAKPOINTS, TPS_BREAKPOINTS)
+                      RPM_BREAKPOINTS, TPS_BREAKPOINTS,
+                      quantize_q8_8, quantize_f32, quantize_tps)
 
 TUNEFILES_DIR = Path("tunefiles")
 _LAST_FILE = TUNEFILES_DIR / ".last"
@@ -58,22 +59,44 @@ def save_tunefile(path: "Path | str", state) -> None:
     _set_last(path)
 
 
+def _load_tps_axis(raw) -> list:
+    """Normalise a tune file's TPS axis to 0.0–1.0 fractions, quantised to the wire.
+
+    Tune files written before the TPS units fix stored percent here, because the
+    TPS_BREAKPOINTS default they fell back to was in percent. This is the one place
+    that shim lives: everything downstream may assume a fraction.
+    """
+    vals = [float(v) for v in raw]
+    if vals and max(vals) > 1.0:
+        vals = [v / 100.0 for v in vals]
+    return [quantize_tps(v) for v in vals]
+
+
 def load_tunefile(path: "Path | str", state) -> None:
+    """Load a tune file into `state`.
+
+    Every value the device narrows on the wire is quantised on the way in, so state
+    holds exactly what the device will hold. Without this, a tune-file 1.05 never
+    equals the device's 1.05078125 and the GUI reports a mismatch that cannot be
+    cleared. See the quantize_* helpers in protocol.py.
+    """
     path = Path(path)
     data = json.loads(path.read_text())
     state.inj_map = data["inj_map"]
     pid = data["pid"]
-    state.pid = PIDParams(kp=float(pid["kp"]), ki=float(pid["ki"]), kd=float(pid["kd"]))
+    state.pid = PIDParams(kp=quantize_f32(pid["kp"]),
+                          ki=quantize_f32(pid["ki"]),
+                          kd=quantize_f32(pid["kd"]))
     p = data["pressure"]
     state.pressure = PressureConfig(
-        low_bar=float(p["low_bar"]),
-        high_bar=float(p["high_bar"]),
+        low_bar=quantize_f32(p["low_bar"]),
+        high_bar=quantize_f32(p["high_bar"]),
         threshold_rpm=int(p["threshold_rpm"]),
     )
-    state.iat_corr = [float(v) for v in data["iat_corr"]]
-    state.et_corr = [float(v) for v in data["et_corr"]]
+    state.iat_corr = [quantize_q8_8(float(v)) for v in data["iat_corr"]]
+    state.et_corr = [quantize_q8_8(float(v)) for v in data["et_corr"]]
     state.rpm_axis = [int(v) for v in data.get("rpm_axis", RPM_BREAKPOINTS)]
-    state.tps_axis = [float(v) for v in data.get("tps_axis", TPS_BREAKPOINTS)]
+    state.tps_axis = _load_tps_axis(data.get("tps_axis", TPS_BREAKPOINTS))
     state.pump_mode_always_on = bool(data.get("pump_mode_always_on", False))
     ap = data.get("accel_pump", {})
     state.accel_pump = AccelPumpParams(
@@ -83,7 +106,7 @@ def load_tunefile(path: "Path | str", state) -> None:
     )
     pb = data.get("powerband", {})
     state.powerband = PowerbandParams(
-        multiplier=float(pb.get("multiplier", 0.5)),
+        multiplier=quantize_q8_8(float(pb.get("multiplier", 0.5))),
         threshold_rpm=int(pb.get("threshold_rpm", 9000)),
         threshold_tps_pct=int(pb.get("threshold_tps_pct", 30)),
         delay_rev=int(pb.get("delay_rev", 50)),

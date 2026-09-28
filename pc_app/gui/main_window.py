@@ -16,6 +16,7 @@ from protocol import (
     CMD_WRITE_ACCEL_PUMP, CMD_WRITE_SHIFT_CUT, CMD_WRITE_POWERBAND,
     encode_map, encode_axis, encode_pid, encode_pressure, encode_corrections,
     encode_accel_pump, encode_shift_cut, encode_powerband,
+    q8_8_raw, quantize_f32, tps_pct_raw,
 )
 from gui.connection_panel  import ConnectionPanel
 from gui.sensor_panel      import SensorPanel
@@ -28,6 +29,16 @@ from gui.tune_file_panel   import TuneFilePanel
 from gui.accel_pump_panel  import AccelPumpPanel
 from gui.shift_cut_panel   import ShiftCutPanel
 from gui.alarm_panel       import AlarmPanel
+
+
+def _q8_8_differs(a, b) -> bool:
+    """True if two multiplier lists differ once quantised to the device's Q8.8 grid."""
+    return [q8_8_raw(v) for v in a] != [q8_8_raw(v) for v in b]
+
+
+def _tps_raw(axis) -> list:
+    """A TPS axis as the integer percents the device stores (None passes through)."""
+    return None if axis is None else [tps_pct_raw(v) for v in axis]
 
 
 class MainWindow(tk.Tk):
@@ -311,27 +322,35 @@ class MainWindow(tk.Tk):
     def _diff_device_vs_state(self) -> list:
         """Return list of human-readable field names whose device buffer differs
         from the corresponding tune-file value in state. Buffers that are None
-        (read failed) are skipped."""
+        (read failed) are skipped.
+
+        Every field is compared in the space the device actually stores it — raw
+        Q8.8 for multipliers, float32 for PID/pressure, integer percent for the TPS
+        axis. Comparing the raw floats instead would report a tune-file 1.05 as
+        different from the device's quantised 1.05078125, a mismatch the user could
+        never clear. State is quantised on load too (tune_io.load_tunefile), so
+        these comparisons should agree; normalising here keeps the warning correct
+        even for a value that reached state by some other route."""
         s = self._state
         diffs = []
         if s.device_map_buf is not None and s.device_map_buf != s.inj_map:
             diffs.append("injection map")
         if s.device_rpm_axis_buf is not None and (
                 s.device_rpm_axis_buf != s.rpm_axis or
-                s.device_tps_axis_buf != s.tps_axis):
+                _tps_raw(s.device_tps_axis_buf) != _tps_raw(s.tps_axis)):
             diffs.append("axis breakpoints")
-        if s.device_iat_corr_buf is not None and s.device_iat_corr_buf != s.iat_corr:
+        if s.device_iat_corr_buf is not None and _q8_8_differs(s.device_iat_corr_buf, s.iat_corr):
             diffs.append("IAT correction")
-        if s.device_et_corr_buf is not None and s.device_et_corr_buf != s.et_corr:
+        if s.device_et_corr_buf is not None and _q8_8_differs(s.device_et_corr_buf, s.et_corr):
             diffs.append("ET correction")
         if s.device_pid_buf is not None and (
-                s.device_pid_buf.kp != s.pid.kp or
-                s.device_pid_buf.ki != s.pid.ki or
-                s.device_pid_buf.kd != s.pid.kd):
+                quantize_f32(s.device_pid_buf.kp) != quantize_f32(s.pid.kp) or
+                quantize_f32(s.device_pid_buf.ki) != quantize_f32(s.pid.ki) or
+                quantize_f32(s.device_pid_buf.kd) != quantize_f32(s.pid.kd)):
             diffs.append("PID")
         if s.device_pressure_buf is not None and (
-                s.device_pressure_buf.low_bar != s.pressure.low_bar or
-                s.device_pressure_buf.high_bar != s.pressure.high_bar or
+                quantize_f32(s.device_pressure_buf.low_bar) != quantize_f32(s.pressure.low_bar) or
+                quantize_f32(s.device_pressure_buf.high_bar) != quantize_f32(s.pressure.high_bar) or
                 s.device_pressure_buf.threshold_rpm != s.pressure.threshold_rpm):
             diffs.append("pressure config")
         if s.device_pump_mode_buf is not None and s.device_pump_mode_buf != s.pump_mode_always_on:
@@ -341,11 +360,9 @@ class MainWindow(tk.Tk):
                 s.device_accel_pump_buf.extra_us != s.accel_pump.extra_us or
                 s.device_accel_pump_buf.duration_ms != s.accel_pump.duration_ms):
             diffs.append("accel pump")
-        # Compare the multiplier as the Q8.8 value actually sent, so a tune-file
-        # 0.60 does not read as different from the device's quantised 0.5977.
         if s.device_powerband_buf is not None and (
-                int(round(s.device_powerband_buf.multiplier * 256))
-                != int(round(s.powerband.multiplier * 256)) or
+                q8_8_raw(s.device_powerband_buf.multiplier)
+                != q8_8_raw(s.powerband.multiplier) or
                 s.device_powerband_buf.threshold_rpm != s.powerband.threshold_rpm or
                 s.device_powerband_buf.threshold_tps_pct != s.powerband.threshold_tps_pct or
                 s.device_powerband_buf.delay_rev != s.powerband.delay_rev):
@@ -419,7 +436,10 @@ class MainWindow(tk.Tk):
         worker.send_command(CMD_WRITE_POWERBAND,  encode_powerband(s.powerband))
         worker.send_command(CMD_WRITE_SHIFT_CUT,  encode_shift_cut(s.shift_cut))
         # Update device buffers to reflect what was just written, so future
-        # tune file loads don't falsely flag a mismatch.
+        # tune file loads don't falsely flag a mismatch. State is already quantised
+        # to what the device stores (see tune_io.load_tunefile and the panels'
+        # flush_to_state), so copying it here is faithful — seed these from a
+        # pre-quantisation value and the false mismatch comes straight back.
         s.device_map_buf      = copy.deepcopy(s.inj_map)
         s.device_rpm_axis_buf = list(s.rpm_axis)
         s.device_tps_axis_buf = list(s.tps_axis)

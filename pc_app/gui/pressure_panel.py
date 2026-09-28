@@ -4,7 +4,8 @@ import tkinter as tk
 from tkinter import ttk
 from typing import Callable
 
-from protocol import PressureConfig, encode_pressure, CMD_WRITE_PRESSURE, CMD_PUMP_MODE
+from protocol import (PressureConfig, encode_pressure, CMD_WRITE_PRESSURE, CMD_PUMP_MODE,
+                      format_f32, quantize_f32)
 from data_model import ECUState
 
 
@@ -16,8 +17,8 @@ class PressurePanel(ttk.LabelFrame):
 
         cfg = ecu_state.pressure
         fields = [
-            ("Low bar:",       "_low_var",       str(cfg.low_bar)),
-            ("High bar:",      "_high_var",      str(cfg.high_bar)),
+            ("Low bar:",       "_low_var",       format_f32(cfg.low_bar)),
+            ("High bar:",      "_high_var",      format_f32(cfg.high_bar)),
             ("Threshold RPM:", "_thresh_var",    str(cfg.threshold_rpm)),
         ]
 
@@ -64,8 +65,8 @@ class PressurePanel(ttk.LabelFrame):
             return
         try:
             cfg = PressureConfig(
-                low_bar=float(self._low_var.get()),
-                high_bar=float(self._high_var.get()),
+                low_bar=quantize_f32(float(self._low_var.get())),
+                high_bar=quantize_f32(float(self._high_var.get())),
                 threshold_rpm=int(self._thresh_var.get()),
             )
         except ValueError:
@@ -73,6 +74,7 @@ class PressurePanel(ttk.LabelFrame):
             return
 
         self._state.pressure = cfg
+        self.refresh_from_state()
         fut = worker.send_command(CMD_WRITE_PRESSURE, encode_pressure(cfg))
         self._send_btn.configure(state="disabled")
         self._status_var.set("Sending...")
@@ -87,16 +89,17 @@ class PressurePanel(ttk.LabelFrame):
         self._status_var.set("Sent OK" if ok else f"Failed: {err}")
 
     def refresh_from_state(self) -> None:
-        self._low_var.set(str(self._state.pressure.low_bar))
-        self._high_var.set(str(self._state.pressure.high_bar))
+        # float32 on the wire — see the note in PIDPanel.refresh_from_state.
+        self._low_var.set(format_f32(self._state.pressure.low_bar))
+        self._high_var.set(format_f32(self._state.pressure.high_bar))
         self._thresh_var.set(str(self._state.pressure.threshold_rpm))
         self._mode_var.set(1 if self._state.pump_mode_always_on else 0)
 
     def flush_to_state(self) -> None:
         try:
             self._state.pressure = PressureConfig(
-                low_bar=float(self._low_var.get()),
-                high_bar=float(self._high_var.get()),
+                low_bar=quantize_f32(float(self._low_var.get())),
+                high_bar=quantize_f32(float(self._high_var.get())),
                 threshold_rpm=int(self._thresh_var.get()),
             )
         except ValueError:

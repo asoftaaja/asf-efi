@@ -4,7 +4,7 @@ import tkinter as tk
 from tkinter import ttk
 from typing import Callable, List, Optional
 
-from protocol import IAT_BINS, ET_BINS, IAT_CORR_TEMPS, ET_CORR_TEMPS, encode_corrections, CMD_WRITE_IAT_CORR, CMD_WRITE_ET_CORR, CMD_TPS_CAL_CLOSED, CMD_TPS_CAL_OPEN
+from protocol import IAT_BINS, ET_BINS, IAT_CORR_TEMPS, ET_CORR_TEMPS, encode_corrections, CMD_WRITE_IAT_CORR, CMD_WRITE_ET_CORR, CMD_TPS_CAL_CLOSED, CMD_TPS_CAL_OPEN, format_q8_8, quantize_q8_8
 from data_model import ECUState
 
 
@@ -23,7 +23,7 @@ class _CorrTable(ttk.LabelFrame):
 
         for i, (v, t) in enumerate(zip(values, temps)):
             ttk.Label(self, text=str(t), width=5, anchor="e").grid(row=i + 1, column=0, padx=2, pady=1)
-            var = tk.StringVar(value=f"{v:.4f}")
+            var = tk.StringVar(value=format_q8_8(v))
             self._vars.append(var)
             ttk.Entry(self, textvariable=var, width=8, justify="center").grid(row=i + 1, column=1, padx=2, pady=1)
 
@@ -34,10 +34,11 @@ class _CorrTable(ttk.LabelFrame):
         ttk.Label(self, textvariable=self._status_var, width=12).grid(row=self._n + 2, column=0, columnspan=2)
 
     def get_values(self) -> Optional[List[float]]:
+        """Parse the entries, snapped to the Q8.8 grid the device stores."""
         result = []
         for var in self._vars:
             try:
-                result.append(float(var.get()))
+                result.append(quantize_q8_8(float(var.get())))
             except ValueError:
                 self._status_var.set("Invalid value")
                 return None
@@ -66,7 +67,7 @@ class _CorrTable(ttk.LabelFrame):
 
     def load_values(self, values: List[float]) -> None:
         for var, v in zip(self._vars, values):
-            var.set(f"{v:.4f}")
+            var.set(format_q8_8(v))
 
 
 class _TpsCalPanel(ttk.LabelFrame):
@@ -143,3 +144,5 @@ class CorrectionPanel(ttk.LabelFrame):
             self._state.iat_corr = iat
         if et is not None:
             self._state.et_corr = et
+        # Re-render so the user sees the value snap to the Q8.8 grid.
+        self.refresh_from_state()

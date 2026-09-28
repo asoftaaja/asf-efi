@@ -17,6 +17,7 @@ from protocol import (
     nearest_rpm_bin, nearest_tps_bin,
     CMD_WRITE_MAP, CMD_READ_MAP, CMD_WRITE_AXIS, CMD_READ_AXIS,
     CMD_WRITE_POWERBAND,
+    format_q8_8, quantize_q8_8, quantize_tps,
 )
 from data_model import ECUState
 
@@ -137,7 +138,8 @@ class MapEditor(ttk.LabelFrame):
         ttk.Label(frame, text="TPS %:", font=("TkDefaultFont", 9, "bold")).grid(
             row=1, column=0, padx=(0, 4), sticky="e")
         for i in range(TPS_BINS):
-            var = tk.StringVar(value=f"{self._state.tps_axis[i]*100:.1f}")
+            # Integer percent — that is the resolution the wire (uint8 %) carries.
+            var = tk.StringVar(value=f"{self._state.tps_axis[i]*100:.0f}")
             entry = ttk.Entry(frame, textvariable=var, width=6, justify="center")
             entry.grid(row=1, column=i + 1, padx=2, pady=2)
             self._tps_axis_vars.append(var)
@@ -167,7 +169,7 @@ class MapEditor(ttk.LabelFrame):
         pb = self._state.powerband
         # (label, attribute name, initial value) — laid out in two columns of pairs
         params = [
-            ("Below-powerband multiplier:", "_pb_mult_var",  "{:.2f}".format(pb.multiplier)),
+            ("Below-powerband multiplier:", "_pb_mult_var",  format_q8_8(pb.multiplier)),
             ("Threshold RPM:",              "_pb_rpm_var",   str(pb.threshold_rpm)),
             ("Threshold TPS (%):",          "_pb_tps_var",   str(pb.threshold_tps_pct)),
             ("Activation delay (rev):",     "_pb_delay_var", str(pb.delay_rev)),
@@ -385,7 +387,8 @@ class MapEditor(ttk.LabelFrame):
                 pct = float(var.get().strip())
                 if not (0.0 <= pct <= 100.0):
                     raise ValueError
-                tps_vals.append(pct / 100.0)
+                # Snap to the uint8-percent grid the device stores.
+                tps_vals.append(quantize_tps(pct / 100.0))
             except ValueError:
                 self._axis_status_var.set(f"Bad TPS[{i}]")
                 return
@@ -393,10 +396,11 @@ class MapEditor(ttk.LabelFrame):
             self._axis_status_var.set("TPS must be ascending")
             return
 
-        # Commit to state and send
+        # Commit to state and send. Re-render the entries so a typed 33.5 visibly
+        # snaps to the 34 the device will hold.
         self._state.rpm_axis = rpm_vals
         self._state.tps_axis = tps_vals
-        self._update_map_labels()
+        self._refresh_axis_from_state()
 
         payload = encode_axis(rpm_vals, tps_vals)
         fut = worker.send_command(CMD_WRITE_AXIS, payload)
@@ -437,7 +441,9 @@ class MapEditor(ttk.LabelFrame):
         except ValueError:
             self._pb_status_var.set("Bad delay")
             return None
-        return {"multiplier": mult, "threshold_rpm": rpm,
+        # Snap to the Q8.8 grid the device stores, so the value committed to state
+        # is the value the device will hold.
+        return {"multiplier": quantize_q8_8(mult), "threshold_rpm": rpm,
                 "threshold_tps_pct": tps, "delay_rev": delay}
 
     def flush_powerband_to_state(self) -> None:
@@ -450,6 +456,8 @@ class MapEditor(ttk.LabelFrame):
         pb.threshold_rpm     = vals["threshold_rpm"]
         pb.threshold_tps_pct = vals["threshold_tps_pct"]
         pb.delay_rev         = vals["delay_rev"]
+        # Re-render so the displayed multiplier is the quantised one now in state.
+        self.refresh_powerband_from_state()
 
     def _send_powerband(self) -> None:
         worker = self._get_worker()
@@ -499,7 +507,7 @@ class MapEditor(ttk.LabelFrame):
     def refresh_powerband_from_state(self) -> None:
         """Update the powerband Entry widgets from ECUState."""
         pb = self._state.powerband
-        self._pb_mult_var.set("{:.2f}".format(pb.multiplier))
+        self._pb_mult_var.set(format_q8_8(pb.multiplier))
         self._pb_rpm_var.set(str(pb.threshold_rpm))
         self._pb_tps_var.set(str(pb.threshold_tps_pct))
         self._pb_delay_var.set(str(pb.delay_rev))
@@ -509,7 +517,7 @@ class MapEditor(ttk.LabelFrame):
         for i, var in enumerate(self._rpm_axis_vars):
             var.set(str(self._state.rpm_axis[i]))
         for i, var in enumerate(self._tps_axis_vars):
-            var.set(f"{self._state.tps_axis[i]*100:.1f}")
+            var.set(f"{self._state.tps_axis[i]*100:.0f}")
         self._update_map_labels()
 
     def _update_map_labels(self) -> None:
