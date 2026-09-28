@@ -4,7 +4,8 @@ import json
 from pathlib import Path
 from typing import Optional
 
-from protocol import PIDParams, PressureConfig, AccelPumpParams, RPM_BREAKPOINTS, TPS_BREAKPOINTS
+from protocol import (PIDParams, PressureConfig, AccelPumpParams, PowerbandParams,
+                      RPM_BREAKPOINTS, TPS_BREAKPOINTS)
 
 TUNEFILES_DIR = Path("tunefiles")
 _LAST_FILE = TUNEFILES_DIR / ".last"
@@ -34,6 +35,12 @@ def save_tunefile(path: "Path | str", state) -> None:
             "threshold_pct_per_s": state.accel_pump.threshold_pct_per_s,
             "extra_us": state.accel_pump.extra_us,
             "duration_ms": state.accel_pump.duration_ms,
+        },
+        "powerband": {
+            "multiplier": state.powerband.multiplier,
+            "threshold_rpm": state.powerband.threshold_rpm,
+            "threshold_tps_pct": state.powerband.threshold_tps_pct,
+            "delay_rev": state.powerband.delay_rev,
         },
         "alarms": {
             "et_threshold": state.et_alarm_threshold,
@@ -66,6 +73,13 @@ def load_tunefile(path: "Path | str", state) -> None:
         threshold_pct_per_s=int(ap.get("threshold_pct_per_s", 50)),
         extra_us=int(ap.get("extra_us", 500)),
         duration_ms=int(ap.get("duration_ms", 300)),
+    )
+    pb = data.get("powerband", {})
+    state.powerband = PowerbandParams(
+        multiplier=float(pb.get("multiplier", 0.5)),
+        threshold_rpm=int(pb.get("threshold_rpm", 9000)),
+        threshold_tps_pct=int(pb.get("threshold_tps_pct", 30)),
+        delay_rev=int(pb.get("delay_rev", 50)),
     )
     alarms = data.get("alarms", {})
     state.et_alarm_threshold   = float(alarms.get("et_threshold",   110.0))

@@ -2,6 +2,7 @@
 #include "ckps.h"
 #include "injection.h"
 #include "accel_pump.h"
+#include "powerband.h"
 #include "pump.h"
 #include "comms.h"
 #include "eeprom_map.h"
@@ -60,6 +61,27 @@ static void updateLEDs()
     digitalWrite(PIN_LED_RED, (inj_active && red_blink_state) ? HIGH : LOW);
 }
 
+// ---- Injection pulse width --------------------------------------------------
+
+/**
+ * @brief Compute the pulse width for one injection event.
+ *
+ * Map interpolation and temperature corrections come from calculatePulseWidth();
+ * the powerband multiplier scales that base value, then the accelerator-pump
+ * shot is added at full value — a transient enrichment should not be leaned out
+ * by the low-load multiplier.
+ *
+ * @param now_ms  Current millis() timestamp.
+ * @return Pulse width in µs, clamped to MAX_PULSE_US.
+ */
+static uint16_t computeInjectionPulse(uint32_t now_ms)
+{
+    uint32_t pw = calculatePulseWidth(rpm, tps, iat_degc, et_degc);
+    pw = pw * getPowerbandMultiplier() >> 8;   // low-load / powerband scaling
+    pw += getAccelPumpExtra(now_ms);
+    return (uint16_t)min(pw, (uint32_t)MAX_PULSE_US);
+}
+
 // ---- 60 Hz injection scheduler (high-RPM mode) ------------------------------
 
 #define PERIOD_60HZ_MS 16   // ≈ 60 Hz
@@ -71,10 +93,7 @@ static void handle60HzInjection()
     uint32_t now = millis();
     if (now - last_60hz_ms >= PERIOD_60HZ_MS) {
         last_60hz_ms = now;
-        uint16_t pw    = calculatePulseWidth(rpm, tps, iat_degc, et_degc);
-        uint16_t accel = getAccelPumpExtra(now);
-        if (accel > 0) pw = (uint16_t)min((uint32_t)pw + accel, (uint32_t)MAX_PULSE_US);
-        fireInjector(pw);
+        fireInjector(computeInjectionPulse(now));
     }
 }
 
@@ -98,6 +117,7 @@ void loop()
     // 1. Read sensors
     tps      = readTPS();
     updateAccelPump(tps, millis());
+    updatePowerband(rpm, tps, getCrankRevs());
     fps_sixteenth_bar  = readFPS();
     iat_degc = readIAT();
     et_degc  = readET();
@@ -107,6 +127,7 @@ void loop()
     if (isCKPSTimeout()) {
         shutoffInjector();
         resetCKPS();
+        resetPowerband(getCrankRevs());
         if (!pump_manual) {
             disablePump();
             pump_active = false;
@@ -120,10 +141,7 @@ void loop()
             } else if (injection_trigger) {
                 // Low RPM: synchronised to CKPS pulse (flag set by ISR)
                 injection_trigger = false;
-                uint16_t pw    = calculatePulseWidth(rpm, tps, iat_degc, et_degc);
-                uint16_t accel = getAccelPumpExtra(millis());
-                if (accel > 0) pw = (uint16_t)min((uint32_t)pw + accel, (uint32_t)MAX_PULSE_US);
-                fireInjector(pw);
+                fireInjector(computeInjectionPulse(millis()));
             }
         }
     }

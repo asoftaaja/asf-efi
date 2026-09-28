@@ -1,5 +1,6 @@
 #include "eeprom_map.h"
 #include "accel_pump.h"
+#include "powerband.h"
 #include "asf_efi.h"
 #include <EEPROM.h>
 
@@ -147,6 +148,30 @@ void loadFromEEPROM()
         accel_duration_ms          = ((uint16_t)EEPROM.read(EEPROM_ADDR_ACCEL_PUMP + 4) << 8)
                                   |  (uint16_t)EEPROM.read(EEPROM_ADDR_ACCEL_PUMP + 5);
     }
+
+    // Powerband — separate magic; safe to add without forcing re-init of other sections
+    if (EEPROM.read(EEPROM_ADDR_POWERBAND_MAGIC) != EEPROM_POWERBAND_MAGIC_VALUE) {
+        savePowerband();                     // persist the compile-time defaults
+        EEPROM.write(EEPROM_ADDR_POWERBAND_MAGIC, EEPROM_POWERBAND_MAGIC_VALUE);
+    } else {
+        powerband_multiplier    = ((uint16_t)EEPROM.read(EEPROM_ADDR_POWERBAND)     << 8)
+                                |  (uint16_t)EEPROM.read(EEPROM_ADDR_POWERBAND + 1);
+        powerband_threshold_rpm = ((uint16_t)EEPROM.read(EEPROM_ADDR_POWERBAND + 2) << 8)
+                                |  (uint16_t)EEPROM.read(EEPROM_ADDR_POWERBAND + 3);
+        powerband_threshold_tps =   EEPROM.read(EEPROM_ADDR_POWERBAND + 4);
+        powerband_delay_rev     = ((uint16_t)EEPROM.read(EEPROM_ADDR_POWERBAND + 5) << 8)
+                                |  (uint16_t)EEPROM.read(EEPROM_ADDR_POWERBAND + 6);
+
+        // Clamp to sane ranges in case a cell was corrupted
+        if (powerband_multiplier    > POWERBAND_MAX_MULTIPLIER)
+            powerband_multiplier    = POWERBAND_MAX_MULTIPLIER;
+        if (powerband_threshold_rpm > POWERBAND_MAX_THRESHOLD_RPM)
+            powerband_threshold_rpm = POWERBAND_MAX_THRESHOLD_RPM;
+        if (powerband_threshold_tps > POWERBAND_MAX_THRESHOLD_TPS)
+            powerband_threshold_tps = POWERBAND_MAX_THRESHOLD_TPS;
+        if (powerband_delay_rev     > POWERBAND_MAX_DELAY_REV)
+            powerband_delay_rev     = POWERBAND_MAX_DELAY_REV;
+    }
 }
 
 void saveInjectionMap()
@@ -218,4 +243,15 @@ void saveAccelPump()
     EEPROM.update(EEPROM_ADDR_ACCEL_PUMP + 3, accel_extra_us & 0xFF);
     EEPROM.update(EEPROM_ADDR_ACCEL_PUMP + 4, accel_duration_ms >> 8);
     EEPROM.update(EEPROM_ADDR_ACCEL_PUMP + 5, accel_duration_ms & 0xFF);
+}
+
+void savePowerband()
+{
+    EEPROM.update(EEPROM_ADDR_POWERBAND,     powerband_multiplier >> 8);
+    EEPROM.update(EEPROM_ADDR_POWERBAND + 1, powerband_multiplier & 0xFF);
+    EEPROM.update(EEPROM_ADDR_POWERBAND + 2, powerband_threshold_rpm >> 8);
+    EEPROM.update(EEPROM_ADDR_POWERBAND + 3, powerband_threshold_rpm & 0xFF);
+    EEPROM.update(EEPROM_ADDR_POWERBAND + 4, powerband_threshold_tps);
+    EEPROM.update(EEPROM_ADDR_POWERBAND + 5, powerband_delay_rev >> 8);
+    EEPROM.update(EEPROM_ADDR_POWERBAND + 6, powerband_delay_rev & 0xFF);
 }

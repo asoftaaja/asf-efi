@@ -69,6 +69,16 @@ uint16_t accel_threshold_pct_per_s = 50;
 uint16_t accel_extra_us             = 500;
 uint16_t accel_duration_ms          = 300;
 
+/* powerband.cpp symbols */
+uint16_t powerband_multiplier    = 128;
+uint16_t powerband_threshold_rpm = 9000;
+uint8_t  powerband_threshold_tps = 30;
+uint16_t powerband_delay_rev     = 50;
+
+/* Stubbed powerband state, settable by the sensor packet tests */
+static bool     stub_powerband_active = false;
+static uint16_t stub_powerband_mult   = 128;
+
 /* Function stubs -- track calls for assertions */
 static bool prime_pump_called    = false;
 static bool disable_pump_called  = false;
@@ -80,6 +90,11 @@ bool isAccelPumpActive()                  { return false; }
 void updateAccelPump(uint8_t, uint32_t)   {}
 uint16_t getAccelPumpExtra(uint32_t)      { return 0; }
 
+bool isPowerbandActive()                        { return stub_powerband_active; }
+uint16_t getPowerbandMultiplier()               { return stub_powerband_mult; }
+void updatePowerband(uint16_t, uint8_t, uint8_t) {}
+void resetPowerband(uint8_t)                    {}
+
 void saveInjectionMap()    {}
 void savePIDParams()       {}
 void savePressureTable()   {}
@@ -90,6 +105,9 @@ void savePumpMode()        {}
 void saveTpsCalibration()  {}
 void saveAccelPump()       {}
 void loadFromEEPROM()      {}
+
+static bool save_powerband_called = false;
+void savePowerband()       { save_powerband_called = true; }
 
 /* ================================================================== */
 /* Packet building helpers                                             */
@@ -301,6 +319,43 @@ void test_cmd_read_sensors_response_contains_tps_and_fps(void)
     processSerial();
     TEST_ASSERT_EQUAL_UINT8(75, Serial.tx_buf[5]);   // tps at offset 2 of payload
     TEST_ASSERT_EQUAL_UINT8(48, Serial.tx_buf[6]);   // fps at offset 3
+}
+
+/* Payload is 19 bytes; LEN counts the command byte too. */
+void test_cmd_read_sensors_response_is_nineteen_payload_bytes(void)
+{
+    uint8_t payload[] = {};
+    feed_packet(CMD_READ_SENSORS, payload, 0);
+    processSerial();
+
+    TEST_ASSERT_EQUAL_UINT8(20, Serial.tx_buf[1]);   // LEN = 1 cmd + 19 data
+}
+
+void test_cmd_read_sensors_response_reports_powerband_active(void)
+{
+    stub_powerband_active = true;
+    stub_powerband_mult   = 256;                     // 1.00 in Q8.8
+    uint8_t payload[] = {};
+    feed_packet(CMD_READ_SENSORS, payload, 0);
+    processSerial();
+
+    /* Payload offset 16 = flag, 17..18 = multiplier; +3 for start/len/cmd */
+    TEST_ASSERT_EQUAL_UINT8(1, Serial.tx_buf[19]);
+    uint16_t mult = ((uint16_t)Serial.tx_buf[20] << 8) | Serial.tx_buf[21];
+    TEST_ASSERT_EQUAL_UINT16(256, mult);
+}
+
+void test_cmd_read_sensors_response_reports_powerband_inactive(void)
+{
+    stub_powerband_active = false;
+    stub_powerband_mult   = 128;                     // 0.50 in Q8.8
+    uint8_t payload[] = {};
+    feed_packet(CMD_READ_SENSORS, payload, 0);
+    processSerial();
+
+    TEST_ASSERT_EQUAL_UINT8(0, Serial.tx_buf[19]);
+    uint16_t mult = ((uint16_t)Serial.tx_buf[20] << 8) | Serial.tx_buf[21];
+    TEST_ASSERT_EQUAL_UINT16(128, mult);
 }
 
 /* ================================================================== */
@@ -587,4 +642,58 @@ void test_cmd_read_accel_pump_returns_current_params(void)
     TEST_ASSERT_EQUAL_HEX8(CMD_READ_ACCEL_PUMP, Serial.tx_buf[2]);
     uint16_t thr = ((uint16_t)Serial.tx_buf[3] << 8) | Serial.tx_buf[4];
     TEST_ASSERT_EQUAL_UINT16(500, thr);
+}
+
+/* ================================================================== */
+/* CMD_WRITE_POWERBAND / CMD_READ_POWERBAND                           */
+/* ================================================================== */
+
+void test_cmd_write_powerband_updates_params_and_acks(void)
+{
+    save_powerband_called = false;
+    uint8_t payload[7];
+    payload[0] = 0x00; payload[1] = 0x99;   // multiplier    = 153 (0.60 in Q8.8)
+    payload[2] = 0x2B; payload[3] = 0xF2;   // threshold_rpm = 11250
+    payload[4] = 45;                        // threshold_tps = 45 %
+    payload[5] = 0x00; payload[6] = 0x50;   // delay_rev     = 80
+    feed_packet(CMD_WRITE_POWERBAND, payload, 7);
+    processSerial();
+
+    TEST_ASSERT_TRUE(tx_has_cmd(CMD_ACK));
+    TEST_ASSERT_EQUAL_UINT16(153,   powerband_multiplier);
+    TEST_ASSERT_EQUAL_UINT16(11250, powerband_threshold_rpm);
+    TEST_ASSERT_EQUAL_UINT8(45,     powerband_threshold_tps);
+    TEST_ASSERT_EQUAL_UINT16(80,    powerband_delay_rev);
+    TEST_ASSERT_TRUE(save_powerband_called);
+}
+
+void test_cmd_write_powerband_wrong_length_nacks(void)
+{
+    powerband_multiplier = 128;
+    uint8_t payload[6] = { 0, 0x99, 0x2B, 0xF2, 45, 0 };
+    feed_packet(CMD_WRITE_POWERBAND, payload, 6);
+    processSerial();
+
+    TEST_ASSERT_TRUE(tx_has_cmd(CMD_NACK));
+    TEST_ASSERT_EQUAL_UINT16(128, powerband_multiplier);   // unchanged
+}
+
+void test_cmd_read_powerband_returns_current_params(void)
+{
+    powerband_multiplier    = 153;
+    powerband_threshold_rpm = 11250;
+    powerband_threshold_tps = 45;
+    powerband_delay_rev     = 80;
+    uint8_t payload[] = {};
+    feed_packet(CMD_READ_POWERBAND, payload, 0);
+    processSerial();
+
+    TEST_ASSERT_EQUAL_HEX8(CMD_READ_POWERBAND, Serial.tx_buf[2]);
+    uint16_t mult  = ((uint16_t)Serial.tx_buf[3] << 8) | Serial.tx_buf[4];
+    uint16_t thr   = ((uint16_t)Serial.tx_buf[5] << 8) | Serial.tx_buf[6];
+    uint16_t delay = ((uint16_t)Serial.tx_buf[8] << 8) | Serial.tx_buf[9];
+    TEST_ASSERT_EQUAL_UINT16(153,   mult);
+    TEST_ASSERT_EQUAL_UINT16(11250, thr);
+    TEST_ASSERT_EQUAL_UINT8(45,     Serial.tx_buf[7]);
+    TEST_ASSERT_EQUAL_UINT16(80,    delay);
 }

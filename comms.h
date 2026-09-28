@@ -29,6 +29,9 @@
 #define CMD_TPS_CAL_OPEN      0x12 // PC→AVR: no payload; captures live ADC as 100% (open) position
 #define CMD_WRITE_ACCEL_PUMP  0x15 // PC→AVR: 6 bytes (threshold, extra_us, duration_ms as uint16 BE)
 #define CMD_READ_ACCEL_PUMP   0x16 // PC→AVR: no payload; AVR→PC: 6 bytes same layout
+// 0x17/0x18 are reserved for the shift cut feature (feature/shift-cut branch)
+#define CMD_WRITE_POWERBAND   0x19 // PC→AVR: 7 bytes (multiplier Q8.8 + threshold_rpm as uint16 BE, threshold_tps as uint8, delay_rev as uint16 BE)
+#define CMD_READ_POWERBAND    0x1A // PC→AVR: no payload; AVR→PC: 7 bytes same layout
 #define CMD_ACK             0x06  // AVR→PC: acknowledged
 #define CMD_NACK            0x07  // AVR→PC: rejected (bad CRC or unknown cmd)
 

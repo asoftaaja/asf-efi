@@ -35,7 +35,15 @@ _HEADER_ROWS = 5
 _COLUMNS = [
     "timestamp", "rpm", "tps_pct", "fps_bar", "iat_degc", "et_degc",
     "pump_active", "bat_v", "pump_duty_pct", "inj_duty_pct", "inj_open_ms", "accel_active",
+    "powerband_active", "powerband_mult",
 ]
+
+# Powerband settings for the simulated run. The thresholds are chosen to sit
+# inside this scenario's RPM/TPS range so the ramp is visible in the output.
+PB_MULTIPLIER    = 0.5
+PB_THRESHOLD_RPM = 3500
+PB_THRESHOLD_TPS = 50.0
+PB_DELAY_REV     = 50
 
 SEED = 42
 INTERVAL_MS = 200
@@ -114,6 +122,15 @@ def _scenario(t: float, rng: random.Random) -> dict:
     )
 
 
+def _advance_powerband(progress: int, rpm: int, tps_pct: float, revs: int) -> int:
+    """Reproduce the firmware ramp: progress walks toward PB_DELAY_REV while
+    both thresholds are met, and back toward 0 while either is not."""
+    in_band = rpm >= PB_THRESHOLD_RPM and tps_pct >= PB_THRESHOLD_TPS
+    if in_band:
+        return min(progress + revs, PB_DELAY_REV)
+    return max(progress - revs, 0)
+
+
 def generate(output_path: str, seed: int = SEED) -> str:
     """Write the log to output_path and return the path."""
     rng = random.Random(seed)
@@ -127,6 +144,8 @@ def generate(output_path: str, seed: int = SEED) -> str:
             fh.write("#\n")
         writer = csv.DictWriter(fh, fieldnames=_COLUMNS)
         writer.writeheader()
+
+        pb_progress = 0
 
         for i in range(steps):
             t = i * INTERVAL_MS / 1000.0
@@ -143,6 +162,11 @@ def generate(output_path: str, seed: int = SEED) -> str:
             inj_duty = max(0.0, s["inj_duty_base"]      + rng.gauss(0, 0.15))
             inj_ms   = _calc_inj_open_ms(rpm, inj_duty)
 
+            # Crank revolutions elapsed since the previous sample drive the ramp
+            revs = int(rpm / 60.0 * (INTERVAL_MS / 1000.0))
+            pb_progress = _advance_powerband(pb_progress, rpm, tps_pct, revs)
+            pb_mult = PB_MULTIPLIER + (1.0 - PB_MULTIPLIER) * pb_progress / PB_DELAY_REV
+
             ts = t0 + timedelta(milliseconds=i * INTERVAL_MS)
             writer.writerow({
                 "timestamp":     ts.isoformat(timespec="milliseconds"),
@@ -157,6 +181,8 @@ def generate(output_path: str, seed: int = SEED) -> str:
                 "inj_duty_pct":  f"{inj_duty:.2f}",
                 "inj_open_ms":   f"{inj_ms:.1f}",
                 "accel_active":  s["accel"],
+                "powerband_active": int(pb_progress >= PB_DELAY_REV),
+                "powerband_mult":   f"{pb_mult:.3f}",
             })
 
     return output_path

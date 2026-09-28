@@ -1,5 +1,6 @@
 #include "comms.h"
 #include "accel_pump.h"
+#include "powerband.h"
 #include "asf_efi.h"
 #include "pump.h"
 #include "eeprom_map.h"
@@ -250,6 +251,29 @@ static void dispatchCommand(const uint8_t *buf, uint8_t len)
         break;
     }
 
+    case CMD_WRITE_POWERBAND:
+        if (plen != 7) { sendNACK(); return; }
+        powerband_multiplier    = ((uint16_t)payload[0] << 8) | payload[1];
+        powerband_threshold_rpm = ((uint16_t)payload[2] << 8) | payload[3];
+        powerband_threshold_tps = payload[4];
+        powerband_delay_rev     = ((uint16_t)payload[5] << 8) | payload[6];
+        savePowerband();
+        sendACK();
+        break;
+
+    case CMD_READ_POWERBAND: {
+        uint8_t buf[7];
+        buf[0] = powerband_multiplier >> 8;
+        buf[1] = powerband_multiplier & 0xFF;
+        buf[2] = powerband_threshold_rpm >> 8;
+        buf[3] = powerband_threshold_rpm & 0xFF;
+        buf[4] = powerband_threshold_tps;
+        buf[5] = powerband_delay_rev >> 8;
+        buf[6] = powerband_delay_rev & 0xFF;
+        sendPacket(CMD_READ_POWERBAND, buf, sizeof(buf));
+        break;
+    }
+
     default:
         sendNACK();
         break;
@@ -315,7 +339,7 @@ void printSensorDebug()
 
 void sendSensorData()
 {
-    uint8_t buf[16];
+    uint8_t buf[19];
     // rpm: uint16
     buf[0] = rpm >> 8;
     buf[1] = rpm & 0xFF;
@@ -353,6 +377,12 @@ void sendSensorData()
     // injector open duration: uint16, µs
     buf[14] = last_pulse_width_us >> 8;
     buf[15] = last_pulse_width_us & 0xFF;
+    // powerband flag: 1 once the ramp has fully reached the in-powerband end
+    buf[16] = isPowerbandActive() ? 1 : 0;
+    // effective powerband multiplier: uint16 Q8.8 (256 = 1.00)
+    uint16_t pb_mult = getPowerbandMultiplier();
+    buf[17] = pb_mult >> 8;
+    buf[18] = pb_mult & 0xFF;
 
     sendPacket(CMD_READ_SENSORS, buf, sizeof(buf));
 }

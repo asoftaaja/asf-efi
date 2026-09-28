@@ -104,3 +104,28 @@ Same Future-polling pattern as the map read. On success, `_refresh_axis_from_sta
 ## Fill All Zeros
 
 The **Fill All Zeros** button sets every cell in `ECUState.inj_map` to 0 and updates all Entry widgets. This does not transmit to the ECU automatically.
+
+---
+
+## Powerband / Low-Load Multiplier
+
+A `ttk.LabelFrame` below the axis editor (grid row `RPM_BINS + 3`) holds the four powerband parameters, laid out as two label/entry column pairs, with its own Read/Send buttons and status label.
+
+| Field | State attribute | Valid range |
+|---|---|---|
+| Below-powerband multiplier | `powerband.multiplier` | 0.00 – 2.00 (1.00 disables the feature) |
+| Threshold RPM | `powerband.threshold_rpm` | 0 – 20000 |
+| Threshold TPS (%) | `powerband.threshold_tps_pct` | 0 – 100 (integer percent, not a fraction) |
+| Activation delay (rev) | `powerband.delay_rev` | 0 – 2000 crank revolutions |
+
+### Validation on send
+
+All four fields are parsed by `_parse_powerband()` before anything is transmitted. An unparseable or out-of-range value aborts the send, reports which field was bad in the status label, and leaves `ECUState` untouched.
+
+### Read / Send
+
+**Send** commits the parsed values to state and packs them with `encode_powerband()` for `CMD_WRITE_POWERBAND`, reusing the shared `_check_future()` poller. **Read** calls `SerialWorker.read_powerband()` and, on success, calls `refresh_powerband_from_state()`.
+
+`flush_powerband_to_state()` is called from `MainWindow._flush_all()`, so in-progress edits are committed before a tune-file save or a write-all — the map cells and axis entries have no equivalent, committing on focus-out and on send respectively.
+
+The live powerband state is displayed separately, in the sensor panel's `PBAND` row. See [../../docs/powerband.md](../../docs/powerband.md).

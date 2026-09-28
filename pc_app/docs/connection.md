@@ -13,7 +13,7 @@ The connection subsystem has three parts: the `ConnectionPanel` GUI widget that 
 1. User selects a port from the `Combobox` (populated by `serial.tools.list_ports`) and clicks **Connect**.
 2. `ConnectionPanel._connect()` creates a `SerialWorker` and sets `ECUState.connected = True` before starting the thread. The thread is a daemon so it is killed automatically if the main process exits.
 3. `SerialWorker.run()` opens the serial port, waits 100 ms for the Arduino USB-CDC reset to settle, and flushes the input buffer.
-4. The worker then reads five configuration blocks from the ECU **before** entering the poll loop:
+4. The worker then reads six configuration blocks from the ECU **before** entering the poll loop:
 
 | Read | Command | State field populated |
 |---|---|---|
@@ -21,9 +21,10 @@ The connection subsystem has three parts: the `ConnectionPanel` GUI widget that 
 | Axis breakpoints | `CMD_READ_AXIS` | `ECUState.device_rpm_axis_buf`, `device_tps_axis_buf` |
 | Pump config | `CMD_READ_PUMP_CONFIG` | `ECUState.pid`, `ECUState.pressure`, `pump_mode_always_on` |
 | Temperature corrections | `CMD_READ_CORRECTIONS` | `ECUState.device_iat_corr_buf`, `device_et_corr_buf` |
-| Accel pump params | `CMD_READ_ACCEL_PUMP` | `ECUState.accel_pump` |
+| Accel pump params | `CMD_READ_ACCEL_PUMP` | `ECUState.device_accel_pump_buf` |
+| Powerband params | `CMD_READ_POWERBAND` | `ECUState.device_powerband_buf` |
 
-All five reads are wrapped in `try/except` — a failed read is non-fatal and the panel will show default values. After all reads, `ECUState.config_fresh` is set.
+All six reads are wrapped in `try/except` — a failed read is non-fatal and the panel will show default values. After all reads, `ECUState.config_fresh` is set.
 
 5. `MainWindow._on_connect()` enables all tuning panels and schedules `_check_map_loaded()` 1.5 s later to allow the startup reads to complete before checking for sync mismatches.
 
@@ -86,6 +87,6 @@ When the device map/axis/corrections loaded at startup differ from the values al
 
 `_buffers_match_state()` compares the `device_*_buf` fields against the live state fields. The check runs once at 1.5 s after connect and again when a tune file is loaded while connected.
 
-**Write all to device** — calls `_write_all_to_device()`, which sends map, axis, PID, pressure, corrections, and accel pump in sequence and updates the device buffers to match, clearing the warning.
+**Write all to device** — calls `_write_all_to_device()`, which sends map, axis, PID, pressure, corrections, accel pump, and powerband in sequence and updates the device buffers to match, clearing the warning.
 
 **Load from device** — copies the `device_*_buf` values into the live state and refreshes all editor panels, clearing the warning.

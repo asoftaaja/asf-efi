@@ -80,16 +80,25 @@ if (pw > MAX_PULSE_US) pw = MAX_PULSE_US;
 | Synchronised | `rpm < RPM_SYNC_THRESHOLD` | `injection_trigger` flag set by CKPS ISR; cleared by main loop |
 | Fixed 60 Hz | `rpm >= RPM_SYNC_THRESHOLD` | `handle60HzInjection()` in main loop, period = 16 ms |
 
-Both paths add the accelerator pump extra pulse width before calling `fireInjector()`. See [accel_pump.md](accel_pump.md) for details.
+Both paths go through the same `computeInjectionPulse()` helper before calling `fireInjector()`.
 
-### Accelerator Pump Integration
+### Final Pulse Width Chain
+
+`calculatePulseWidth()` is a pure function of RPM, TPS and the two temperatures. The powerband multiplier and the accelerator pump shot are applied outside it, in one helper shared by both scheduling modes:
 
 ```cpp
-uint16_t pw    = calculatePulseWidth(rpm, tps, iat_degc, et_degc);
-uint16_t accel = getAccelPumpExtra(millis());
-if (accel > 0) pw = (uint16_t)min((uint32_t)pw + accel, (uint32_t)MAX_PULSE_US);
-fireInjector(pw);
+static uint16_t computeInjectionPulse(uint32_t now_ms)
+{
+    uint32_t pw = calculatePulseWidth(rpm, tps, iat_degc, et_degc);
+    pw = pw * getPowerbandMultiplier() >> 8;   // low-load / powerband scaling
+    pw += getAccelPumpExtra(now_ms);
+    return (uint16_t)min(pw, (uint32_t)MAX_PULSE_US);
+}
 ```
+
+So the full chain is: **map (bilinear) → ×100 µs → ×IAT (Q8.8) → ×ET (Q8.8) → clamp → ×powerband (Q8.8) → + accel pump extra → clamp**.
+
+The order is deliberate: the powerband multiplier scales the mapped and temperature-corrected base only, while the accelerator-pump shot is added at full value afterwards — a transient enrichment should not be leaned out by the low-load multiplier. See [powerband.md](powerband.md) and [accel_pump.md](accel_pump.md) for details.
 
 ---
 

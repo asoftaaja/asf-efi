@@ -52,8 +52,11 @@ _SUBPLOT_DEFS = [
     ("Duty Cycles",       [("inj_duty_pct",  "Injector",   "#e377c2"),
                            ("pump_duty_pct", "Pump",       "#7f7f7f")],            "%",       False),
     ("Injector Pulse",    [("inj_open_ms",   "Pulse",      "#e377c2")],            "ms",      False),
+    ("Powerband Multiplier",
+                          [("powerband_mult", "Multiplier", "#1f77b4")],           "x",       False),
     ("Active Flags",      [("pump_active",   "Pump",       "#bcbd22"),
-                           ("accel_active",  "Accel pump", "#17becf")],            "Active",  True),
+                           ("accel_active",  "Accel pump", "#17becf"),
+                           ("powerband_active", "Powerband", "#8c564b")],          "Active",  True),
 ]
 
 # Fields shown in the value bar split across two rows.
@@ -73,6 +76,7 @@ _VALUE_BAR_ROW2 = [
     ("inj_duty_pct",  "I.DUTY",  "{:.1f} %"),
     ("inj_open_ms",   "INJ",     "{:.1f} ms"),
     ("accel_active",  "ACCEL",   lambda v: "ON" if v else "OFF"),
+    ("powerband_mult", "PBAND",  "{:.2f}"),
 ]
 _VALUE_BAR_FIELDS = _VALUE_BAR_ROW1 + _VALUE_BAR_ROW2
 
@@ -104,6 +108,7 @@ def _load_log(path: str) -> dict:
     numeric = [
         "rpm", "tps_pct", "fps_bar", "iat_degc", "et_degc",
         "pump_active", "bat_v", "pump_duty_pct", "inj_duty_pct", "inj_open_ms", "accel_active",
+        "powerband_active", "powerband_mult",
     ]
     for col in numeric:
         if col in data:

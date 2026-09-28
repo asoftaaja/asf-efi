@@ -31,9 +31,17 @@ All multi-byte integers are stored big-endian. Floats are IEEE 754 single-precis
 | 117 | 2 | Accel pump extra: `accel_extra_us` as uint16 BE | 121 | (shared) |
 | 119 | 2 | Accel pump duration: `accel_duration_ms` as uint16 BE | 121 | (shared) |
 | **121** | **1** | **Accel pump magic byte** | — | **0xAE** |
-| **122** | — | **First free byte** | — | — |
+| 122 | 8 | *Reserved* — shift cut section on the `feature/shift-cut` branch | 129 | `0xB3` |
+| 130 | 2 | Powerband multiplier: `powerband_multiplier` as uint16 BE (Q8.8) | 137 | `0xB4` |
+| 132 | 2 | Powerband RPM threshold: `powerband_threshold_rpm` as uint16 BE | 137 | (shared) |
+| 134 | 1 | Powerband TPS threshold: `powerband_threshold_tps` as uint8 percent | 137 | (shared) |
+| 135 | 2 | Powerband ramp length: `powerband_delay_rev` as uint16 BE | 137 | (shared) |
+| **137** | **1** | **Powerband magic byte** | — | **0xB4** |
+| **138** | — | **First free byte** | — | — |
 
-Total used: 122 of 1024 bytes.
+Total used: 138 of 1024 bytes (122–129 reserved but unused on this branch).
+
+Addresses 122–129 are left free so the shift cut feature developed on `feature/shift-cut` merges without renumbering or forcing an EEPROM re-init. Serial command IDs `0x17`/`0x18` are reserved for the same reason.
 
 ---
 
@@ -62,3 +70,4 @@ Each section has a dedicated save function in `eeprom_map.cpp`:
 | `savePumpMode()` | address 108 | `CMD_PUMP_MODE` |
 | `saveTpsCalibration()` | addresses 110–113 | `CMD_TPS_CAL_CLOSED` / `CMD_TPS_CAL_OPEN` |
 | `saveAccelPump()` | addresses 115–120 | `CMD_WRITE_ACCEL_PUMP` |
+| `savePowerband()` | addresses 130–136 | `CMD_WRITE_POWERBAND` |

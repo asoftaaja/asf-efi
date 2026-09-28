@@ -56,12 +56,14 @@ CRC-8/SMBUS: polynomial `0x07`, initial value `0x00`, no input/output reflection
 | `CMD_TPS_CAL_OPEN`    | `0x12` | PC → ECU | none | ACK/NACK |
 | `CMD_WRITE_ACCEL_PUMP`| `0x15` | PC → ECU | 6 bytes (3× uint16) | ACK/NACK |
 | `CMD_READ_ACCEL_PUMP` | `0x16` | PC → ECU | none | 6-byte accel pump params |
+| `CMD_WRITE_POWERBAND` | `0x19` | PC → ECU | 7 bytes | ACK/NACK |
+| `CMD_READ_POWERBAND`  | `0x1A` | PC → ECU | none | 7-byte powerband params |
 
 ---
 
 ## Payload Layouts
 
-### Sensor response — `CMD_READ_SENSORS` (16 bytes)
+### Sensor response — `CMD_READ_SENSORS` (19 bytes)
 
 Decoded by `decode_sensor_data()` into a `SensorData` object.
 
@@ -78,6 +80,8 @@ Decoded by `decode_sensor_data()` into a `SensorData` object.
 | 11–12 | uint16  | injector duty          | ÷ 10 → % |
 | 13    | uint8   | accel_active           | 0/1 |
 | 14–15 | uint16  | injector open duration | direct → µs (0–25 000) |
+| 16    | uint8   | powerband_active       | 0/1 (1 = ramp fully in) |
+| 17–18 | uint16  | powerband multiplier   | ÷ 256 → float (Q8.8, 256 = 1.00) |
 
 ### Injection map — `CMD_WRITE_MAP` / `CMD_READ_MAP` (40 bytes)
 
@@ -114,6 +118,12 @@ Unpacked by `decode_pump_config()` into `(PIDParams, PressureConfig, bool)`.
 
 3 × uint16 big-endian: threshold_pct_per_s, extra_us, duration_ms. Packed/unpacked by `encode_accel_pump()` / `decode_accel_pump()`.
 
+### Powerband — `CMD_WRITE_POWERBAND` / `CMD_READ_POWERBAND` (7 bytes)
+
+`struct.pack('>HHBH', ...)`: multiplier (uint16 Q8.8 — the float multiplier × 256), threshold_rpm (uint16), threshold_tps_pct (uint8, integer percent), delay_rev (uint16). Packed/unpacked by `encode_powerband()` / `decode_powerband()`.
+
+IDs `0x17`/`0x18` are reserved for the firmware's shift cut feature and unused here.
+
 ---
 
 ## Data Classes
@@ -122,7 +132,8 @@ Defined in `protocol.py`:
 
 | Class | Fields |
 |---|---|
-| `SensorData` | rpm, tps (0–1), fps_bar, iat_degc, et_degc, pump_active, bat_v, pump_duty, inj_duty, accel_active, inj_open_us |
+| `SensorData` | rpm, tps (0–1), fps_bar, iat_degc, et_degc, pump_active, bat_v, pump_duty, inj_duty, accel_active, inj_open_us, powerband_active, powerband_mult |
 | `PIDParams` | kp, ki, kd |
 | `PressureConfig` | low_bar, high_bar, threshold_rpm |
 | `AccelPumpParams` | threshold_pct_per_s, extra_us, duration_ms |
+| `PowerbandParams` | multiplier (float), threshold_rpm, threshold_tps_pct (integer percent), delay_rev |

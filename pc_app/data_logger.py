@@ -18,6 +18,7 @@ _HEADER_ROWS = 5
 _COLUMNS = [
     "timestamp", "rpm", "tps_pct", "fps_bar", "iat_degc", "et_degc",
     "pump_active", "bat_v", "pump_duty_pct", "inj_duty_pct", "inj_open_ms", "accel_active",
+    "powerband_active", "powerband_mult",
 ]
 _SAMPLE_PERIOD_S = 0.2     # 5 Hz cadence; matches sensor packet rate
 _FLUSH_INTERVAL_ROWS = 5   # flush every ~1 s
@@ -131,6 +132,8 @@ class DataLogger:
             "inj_duty_pct": f"{data.inj_duty:.2f}",
             "inj_open_ms":  f"{data.inj_open_us / 1000:.1f}",
             "accel_active": int(data.accel_active),
+            "powerband_active": int(data.powerband_active),
+            "powerband_mult": f"{data.powerband_mult:.3f}",
         })
         self._rows_since_flush += 1
         if self._rows_since_flush >= _FLUSH_INTERVAL_ROWS:

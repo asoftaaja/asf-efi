@@ -8,6 +8,7 @@
  *   - injection_trigger flag logic below/above RPM_SYNC_THRESHOLD
  *   - isCKPSTimeout() timing
  *   - resetCKPS()
+ *   - getCrankRevs() free-running revolution counter
  *
  * How ISRs are called:
  *   The mock avr/interrupt.h defines  ISR(vec) -> void vec(void)
@@ -270,4 +271,48 @@ void test_reset_ckps_re_enables_startup_gate(void)
 
     TIMER1_CAPT_vect();       // pulse 2 after reset
     TEST_ASSERT_TRUE(pump_active);
+}
+
+/* ================================================================== */
+/* getCrankRevs                                                        */
+/* ================================================================== */
+
+/* Every capture counts, including the two startup pulses that return early
+ * from the ISR before the injection_trigger logic. */
+void test_crank_revs_counts_startup_pulses(void)
+{
+    uint8_t before = getCrankRevs();
+    resetCKPS();              // does not clear the counter
+    TIMER1_CAPT_vect();       // pulse 1 (startup gate)
+    TIMER1_CAPT_vect();       // pulse 2 (startup gate)
+    TEST_ASSERT_EQUAL_UINT8((uint8_t)(before + 2), getCrankRevs());
+}
+
+/* Captures after the startup gate keep incrementing the counter. */
+void test_crank_revs_increments_after_startup(void)
+{
+    advance_past_startup();
+    uint8_t before = getCrankRevs();
+    TIMER1_CAPT_vect();
+    TIMER1_CAPT_vect();
+    TIMER1_CAPT_vect();
+    TEST_ASSERT_EQUAL_UINT8((uint8_t)(before + 3), getCrankRevs());
+}
+
+/* The counter is a free-running tick source, not engine state: resetCKPS()
+ * must leave it alone so consumers' wrap-safe deltas stay valid. */
+void test_crank_revs_not_cleared_by_reset(void)
+{
+    advance_past_startup();
+    uint8_t before = getCrankRevs();
+    resetCKPS();
+    TEST_ASSERT_EQUAL_UINT8(before, getCrankRevs());
+}
+
+/* The uint8_t counter wraps at 256; consumers rely on that wrap being clean. */
+void test_crank_revs_wraps_at_256(void)
+{
+    uint8_t before = getCrankRevs();
+    for (int i = 0; i < 256; i++) TIMER1_CAPT_vect();
+    TEST_ASSERT_EQUAL_UINT8(before, getCrankRevs());
 }
