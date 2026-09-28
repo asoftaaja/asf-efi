@@ -103,7 +103,7 @@ Decoded by `decode_sensor_data()` into a `SensorData` object.
 
 ### Temperature corrections — `CMD_WRITE_IAT_CORR` / `CMD_WRITE_ET_CORR` (10 bytes each)
 
-5 × uint16 big-endian Q8.8 fixed-point values. 256 = 1.0 (no correction). Packed by `encode_corrections(values)` where `values` is a list of Python floats.
+5 × uint16 big-endian Q8.8 fixed-point values. 256 = 1.0 (no correction). Packed by `encode_corrections(values)` where `values` is a list of Python floats, each rounded to the nearest code by `q8_8_raw()`. The step is 1/256 = 0.00390625, so the PC app holds and displays the quantised value (`quantize_q8_8` / `format_q8_8`) rather than the float it was given — see [connection.md](connection.md).
 
 ### Pump config response — `CMD_READ_PUMP_CONFIG` (23 bytes)
 

@@ -60,7 +60,13 @@ Implemented in `tune_io.py`.
 
 **`save_tunefile(path, state)`** — serialises the entire `ECUState` to the file, then writes the path to `tunefiles/.last`.
 
-**`load_tunefile(path, state)`** — reads the JSON and writes all fields into `ECUState`. Fields absent from the file (older tune files) are silently defaulted:
+**`load_tunefile(path, state)`** — reads the JSON and writes all fields into `ECUState`.
+
+Values the device narrows on the wire are quantised on the way in, so `ECUState` holds exactly what the ECU will hold: `iat_corr`, `et_corr` and `powerband.multiplier` to the Q8.8 grid, `pid` and `pressure` floats to float32, `tps_axis` to integer percent. Without this a file's `1.05` never equals the device's `1.05078125` and the sync warning bar cannot be cleared — see [connection.md](connection.md). A saved file therefore also holds quantised values; `save_tunefile` needs no special handling.
+
+`tps_axis` written by versions before this quantisation was added stored **percent** rather than fractions (the `TPS_BREAKPOINTS` default it fell back to was in percent). `_load_tps_axis()` detects that — any value above 1.0 — and divides by 100. This is the only place that compatibility shim lives.
+
+Fields absent from the file (older tune files) are silently defaulted:
 - `rpm_axis`, `tps_axis` → compile-time defaults from `protocol.py`
 - `pump_mode_always_on` → `False`
 - `accel_pump` → threshold 50 %/s, extra 500 µs, duration 300 ms

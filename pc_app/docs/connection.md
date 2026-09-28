@@ -86,7 +86,9 @@ When the device map/axis/corrections loaded at startup differ from the values al
    [Write all to device]  [Load from device]  [Dismiss]
 ```
 
-`_buffers_match_state()` compares the `device_*_buf` fields against the live state fields. The check runs once at 1.5 s after connect and again when a tune file is loaded while connected.
+`_diff_device_vs_state()` compares the `device_*_buf` fields against the live state fields and returns the names of those that differ, which the bar lists. The check runs once the startup reads complete after connect (polled, ~8 s cap) and again when a tune file is loaded while connected.
+
+**Quantisation.** Every field is compared in the form the device actually stores — raw Q8.8 for the IAT/ET corrections and the powerband multiplier, float32 for PID and pressure, integer percent for the TPS axis. Comparing the raw floats would report a tune-file `1.05` as different from the device's quantised `1.05078125`, a mismatch the user could never clear. Tune-file values are quantised on load (`tune_io.load_tunefile`) and user entries on parse, so state holds exactly what the device holds; the helpers live in `protocol.py` (`quantize_q8_8`, `quantize_f32`, `quantize_tps` and the matching `q8_8_raw` / `tps_pct_raw` / `format_*`).
 
 **Write all to device** — calls `_write_all_to_device()`, which sends map, axis, PID, pressure, corrections, accel pump, shift cut, and powerband in sequence and updates the device buffers to match, clearing the warning.
 

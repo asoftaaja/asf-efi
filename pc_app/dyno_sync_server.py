@@ -28,6 +28,7 @@ import threading
 from typing import Dict, Optional
 
 import tune_io
+from protocol import tps_pct_raw
 
 PROTO_VERSION = 1
 PW_UNIT_US = 100                 # one raw map unit = 100 µs of injector pulse
@@ -51,15 +52,12 @@ def load_config() -> dict:
 
 
 def _tps_axis_to_pct(tps_axis) -> list:
-    """Normalise the TPS axis to integer percent.
+    """The TPS axis as the integer percents the device stores.
 
-    ECUState.tps_axis holds fractions 0..1 after a device read or tune-file load,
-    but percent integers (TPS_BREAKPOINTS) before either has happened.
+    ECUState.tps_axis is always a 0..1 fraction; this is the same narrowing the
+    wire applies, so the exported axis matches what the ECU holds.
     """
-    vals = [float(v) for v in tps_axis]
-    if vals and max(vals) <= 1.0:
-        vals = [v * 100.0 for v in vals]
-    return [int(round(v)) for v in vals]
+    return [tps_pct_raw(float(v)) for v in tps_axis]
 
 
 class DynoSyncServer(threading.Thread):
@@ -210,9 +208,12 @@ class DynoSyncServer(threading.Thread):
 
         matches = None  # type: Optional[bool]
         if s.device_map_buf is not None:
+            # The TPS axis is compared as integer percent — the form the device
+            # stores — so this flag agrees with the GUI's mismatch warning.
             matches = (s.device_map_buf == s.inj_map and
                        s.device_rpm_axis_buf == s.rpm_axis and
-                       s.device_tps_axis_buf == s.tps_axis)
+                       s.device_tps_axis_buf is not None and
+                       _tps_axis_to_pct(s.device_tps_axis_buf) == _tps_axis_to_pct(s.tps_axis))
 
         tunefile = None
         try:

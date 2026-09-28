@@ -4,7 +4,7 @@ import tkinter as tk
 from tkinter import ttk
 from typing import Callable
 
-from protocol import PIDParams, encode_pid, CMD_WRITE_PID
+from protocol import PIDParams, encode_pid, CMD_WRITE_PID, format_f32, quantize_f32
 from data_model import ECUState
 
 
@@ -22,7 +22,7 @@ class PIDPanel(ttk.LabelFrame):
 
         for row, (label, attr, default) in enumerate(params):
             ttk.Label(self, text=label + ":", width=4, anchor="e").grid(row=row, column=0, padx=4, pady=3)
-            var = tk.StringVar(value=str(default))
+            var = tk.StringVar(value=format_f32(default))
             setattr(self, attr, var)
             ttk.Entry(self, textvariable=var, width=10).grid(row=row, column=1, padx=4)
 
@@ -39,15 +39,16 @@ class PIDPanel(ttk.LabelFrame):
             return
         try:
             params = PIDParams(
-                kp=float(self._kp_var.get()),
-                ki=float(self._ki_var.get()),
-                kd=float(self._kd_var.get()),
+                kp=quantize_f32(float(self._kp_var.get())),
+                ki=quantize_f32(float(self._ki_var.get())),
+                kd=quantize_f32(float(self._kd_var.get())),
             )
         except ValueError:
             self._status_var.set("Invalid value")
             return
 
         self._state.pid = params
+        self.refresh_from_state()
         fut = worker.send_command(CMD_WRITE_PID, encode_pid(params))
         self._send_btn.configure(state="disabled")
         self._status_var.set("Sending...")
@@ -62,16 +63,19 @@ class PIDPanel(ttk.LabelFrame):
         self._status_var.set("Sent OK" if ok else f"Failed: {err}")
 
     def refresh_from_state(self) -> None:
-        self._kp_var.set(str(self._state.pid.kp))
-        self._ki_var.set(str(self._state.pid.ki))
-        self._kd_var.set(str(self._state.pid.kd))
+        # format_f32: the gains are float32 on the wire, and span orders of
+        # magnitude, so show the shortest string that round-trips rather than the
+        # raw double (which reads as 1.100000023841858 after a device read).
+        self._kp_var.set(format_f32(self._state.pid.kp))
+        self._ki_var.set(format_f32(self._state.pid.ki))
+        self._kd_var.set(format_f32(self._state.pid.kd))
 
     def flush_to_state(self) -> None:
         try:
             self._state.pid = PIDParams(
-                kp=float(self._kp_var.get()),
-                ki=float(self._ki_var.get()),
-                kd=float(self._kd_var.get()),
+                kp=quantize_f32(float(self._kp_var.get())),
+                ki=quantize_f32(float(self._ki_var.get())),
+                kd=quantize_f32(float(self._kd_var.get())),
             )
         except ValueError:
             pass

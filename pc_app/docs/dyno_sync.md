@@ -119,10 +119,10 @@ single int store, so the snapshot is at worst one cell behind an in-progress edi
 
 ### TPS axis units
 
-`ECUState.tps_axis` holds fractions 0..1 after a device read or tune-file load, but
-the percent integers from `TPS_BREAKPOINTS` before either has happened. The server
-normalises: if every value is ≤ 1.0 it multiplies by 100, then rounds to int. Clients
-always receive percent.
+`ECUState.tps_axis` always holds fractions 0..1, including the `TPS_BREAKPOINTS`
+defaults used before a device read or tune-file load. The server converts with
+`tps_pct_raw()` from `protocol.py` — the same narrowing the wire applies — so clients
+receive exactly the integer percent the ECU stores.
 
 ---
 

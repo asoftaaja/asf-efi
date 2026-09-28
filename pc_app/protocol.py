@@ -53,7 +53,8 @@ IAT_CORR_TEMPS = [-20,  0, 20, 40,  70]   # °C breakpoints matching firmware IA
 ET_CORR_TEMPS  = [  0, 25, 50, 80, 100]   # °C breakpoints matching firmware ET_CORR_TEMPS
 
 RPM_BREAKPOINTS = [1000, 4000, 7000, 9000, 11000, 12500, 13500, 14500, 15500, 17000]
-TPS_BREAKPOINTS = [0, 30, 60, 100]   # percent integers (0–100)
+TPS_BREAKPOINTS = [0.0, 0.30, 0.60, 1.00]   # fractions 0.0–1.0, as ECUState.tps_axis
+                                            # and the tune-file format store them
 
 # ── Data classes ─────────────────────────────────────────────────────────────
 
@@ -157,6 +158,65 @@ def parse_packet(data: bytes) -> Optional[Tuple[int, bytes]]:
     return cmd, payload
 
 
+# ── Wire quantisation ─────────────────────────────────────────────────────────
+# Values are narrowed when sent to the device: Q8.8 uint16 for multipliers, float32
+# for PID/pressure, uint8 percent for TPS breakpoints. The PC app must hold and
+# display the narrowed value, or a loaded tune file reads as "different from device"
+# forever. Every boundary that parses, displays or compares such a value goes
+# through these helpers — see gui/ and tune_io.py.
+
+Q8_8_SCALE   = 256
+Q8_8_MAX_RAW = 0xFFFF      # uint16 field on the wire
+
+
+def q8_8_raw(value: float) -> int:
+    """The raw uint16 the device stores for `value` (clamped to the field)."""
+    return max(0, min(Q8_8_MAX_RAW, int(round(value * Q8_8_SCALE))))
+
+
+def quantize_q8_8(value: float) -> float:
+    """The float the device will actually hold for `value`."""
+    return q8_8_raw(value) / Q8_8_SCALE
+
+
+def format_q8_8(value: float) -> str:
+    """Q8.8 value as displayed: quantised, 3 decimals.
+
+    Lossless: 3 decimals resolve 0.001, finer than the 1/256 = 0.0039 Q8.8 step,
+    so re-parsing the displayed string yields the same raw code.
+    """
+    return f"{quantize_q8_8(value):.3f}"
+
+
+def quantize_f32(value: float) -> float:
+    """The float32 the device will actually hold for `value`."""
+    return struct.unpack('>f', struct.pack('>f', float(value)))[0]
+
+
+def format_f32(value: float) -> str:
+    """Shortest decimal string that re-parses to the same float32 the device holds.
+
+    A fixed decimal count cannot serve fields spanning orders of magnitude (a Kd of
+    0.0005 and a Kp of 12.5), so this widens until the value round-trips.
+    """
+    v = quantize_f32(value)
+    for digits in range(1, 10):   # 9 significant digits always round-trips a float32
+        s = f"{v:.{digits}g}"
+        if quantize_f32(float(s)) == v:
+            return s
+    return f"{v:.9g}"
+
+
+def tps_pct_raw(value: float) -> int:
+    """The raw uint8 percent the device stores for a 0.0–1.0 TPS breakpoint."""
+    return max(0, min(0xFF, int(round(value * 100))))
+
+
+def quantize_tps(value: float) -> float:
+    """The 0.0–1.0 fraction the device will actually hold for a TPS breakpoint."""
+    return tps_pct_raw(value) / 100.0
+
+
 # ── Encode helpers ────────────────────────────────────────────────────────────
 
 def encode_map(inj_map: List[List[int]]) -> bytes:
@@ -179,14 +239,14 @@ def encode_pressure(cfg: PressureConfig) -> bytes:
 
 
 def encode_corrections(values: List[float]) -> bytes:
-    """Pack 10 × uint16 Q8.8 big-endian (20 bytes). 1.0 = 256."""
-    raw = [round(v * 256) for v in values]
+    """Pack len(values) × uint16 Q8.8 big-endian. 1.0 = 256."""
+    raw = [q8_8_raw(v) for v in values]
     return struct.pack('>' + 'H' * len(raw), *raw)
 
 
 def encode_axis(rpm_pts: List[int], tps_pts: List[float]) -> bytes:
-    """Pack 12 × uint16 RPM + 5 × uint8 TPS percent big-endian (29 bytes)."""
-    tps_raw = [round(v * 100) for v in tps_pts]
+    """Pack 10 × uint16 RPM + 4 × uint8 TPS percent big-endian (24 bytes)."""
+    tps_raw = [tps_pct_raw(v) for v in tps_pts]
     return struct.pack('>' + 'H' * RPM_BINS, *rpm_pts) + \
            struct.pack('>' + 'B' * TPS_BINS, *tps_raw)
 
@@ -207,7 +267,7 @@ def decode_map(payload: bytes) -> List[List[int]]:
 
 
 def decode_axis(payload: bytes) -> Tuple[List[int], List[float]]:
-    """Unpack 29-byte axis payload to (rpm_pts, tps_pts). TPS values returned as 0.0–1.0."""
+    """Unpack 24-byte axis payload to (rpm_pts, tps_pts). TPS values returned as 0.0–1.0."""
     if len(payload) < RPM_BINS * 2 + TPS_BINS:
         raise ValueError(f"Axis payload too short: {len(payload)}")
     rpm_pts = list(struct.unpack_from('>' + 'H' * RPM_BINS, payload, 0))
@@ -256,7 +316,7 @@ def encode_powerband(params: 'PowerbandParams') -> bytes:
     """Pack multiplier (uint16 Q8.8), threshold_rpm (uint16), threshold_tps (uint8)
     and delay_rev (uint16), all big-endian (7 bytes)."""
     return struct.pack('>HHBH',
-                       int(round(params.multiplier * 256)),
+                       q8_8_raw(params.multiplier),
                        int(params.threshold_rpm),
                        int(params.threshold_tps_pct),
                        int(params.delay_rev))
@@ -319,5 +379,5 @@ def nearest_rpm_bin(rpm: int, axis: Optional[List[int]] = None) -> int:
 
 
 def nearest_tps_bin(tps: float, axis: Optional[List[float]] = None) -> int:
-    pts = axis if axis is not None else [v / 100.0 for v in TPS_BREAKPOINTS]
+    pts = axis if axis is not None else TPS_BREAKPOINTS
     return min(range(len(pts)), key=lambda i: abs(pts[i] - tps))
