@@ -30,12 +30,9 @@ Detailed implementation notes for specific features are kept in the `docs/` fold
 
 | File | Topic |
 |---|---|
-| [docs/accel_pump.md](docs/accel_pump.md) | Accelerator pump enrichment — TPS rate detection, linear decay logic, EEPROM layout (addresses 115–121), serial commands 0x15/0x16, PC app integration |
-| [docs/ckps.md](docs/ckps.md) | CKPS signal processing — Timer1 input capture, RPM calculation with overflow handling, pump enable gating, injection_trigger flag, timeout detection |
-| [docs/injection.md](docs/injection.md) | Injection control — 10×4 map, bilinear interpolation, Q8.8 temperature corrections, Timer1 COMPA fire/close mechanism, sync vs 60 Hz scheduling modes |
-| [docs/powerband.md](docs/powerband.md) | Low-load (powerband) multiplier — RPM/TPS thresholds, revolution-counted ramp, EEPROM layout (addresses 130–137), serial commands 0x19/0x1A, PC app integration |
+| [docs/injection.md](docs/injection.md) | Injection control — 10×4 map, bilinear interpolation, Q8.8 temperature corrections, Timer1 COMPA fire/close mechanism, sync vs 60 Hz scheduling modes, final pulse width chain; low-load (powerband) multiplier — RPM/TPS thresholds, revolution-counted ramp, EEPROM 130–137, commands 0x19/0x1A; accelerator pump — TPS rate detection, linear decay, EEPROM 115–121, commands 0x15/0x16; PC app integration for both |
 | [docs/pump.md](docs/pump.md) | Fuel pump control — PI pressure regulator, anti-windup, always-on mode, prime function, pump enable gating after 2 CKPS pulses |
-| [docs/sensors.md](docs/sensors.md) | Sensor reading — TPS linear + calibration, FPS linear, IAT/ET NTC thermistor lookup, battery voltage divider |
+| [docs/sensors.md](docs/sensors.md) | Sensor reading — TPS linear + calibration, FPS linear, IAT/ET NTC thermistor lookup, battery voltage divider; CKPS signal processing — Timer1 input capture, RPM calculation with overflow handling, pump enable gating, injection_trigger flag, crank revolution counter, timeout detection |
 | [docs/serial_protocol.md](docs/serial_protocol.md) | Serial protocol — packet frame format, CRC-8/SMBUS, all command IDs with payload layouts, sensor data packet structure |
 | [docs/shift_cut.md](docs/shift_cut.md) | Shift cut — shift sensor input on D2 sampled in the CKPS ISR, ignition cut pulse output on D7, EEPROM layout (addresses 122–129), serial commands 0x17/0x18, PC app integration |
 | [docs/eeprom_map.md](docs/eeprom_map.md) | EEPROM layout — full address map (138 bytes used), per-section magic byte strategy, save function reference |

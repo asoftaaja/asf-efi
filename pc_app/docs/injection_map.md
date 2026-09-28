@@ -132,4 +132,4 @@ The multiplier is Q8.8 on the wire, so `_parse_powerband()` snaps it with `quant
 
 `flush_powerband_to_state()` is called from `MainWindow._flush_all()`, so in-progress edits are committed before a tune-file save or a write-all — the map cells and axis entries have no equivalent, committing on focus-out and on send respectively.
 
-The live powerband state is displayed separately, in the sensor panel's `PBAND` row. See [../../docs/powerband.md](../../docs/powerband.md).
+The live powerband state is displayed separately, in the sensor panel's `PBAND` row. See [../../docs/injection.md](../../docs/injection.md#low-load-powerband-multiplier).

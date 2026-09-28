@@ -58,7 +58,7 @@ The receive state machine in `comms.cpp` (`processSerial()`) is a four-state FSM
 | 16 | uint8 | powerband active | 0 or 1 (1 = ramp fully in) |
 | 17–18 | uint16 BE | powerband multiplier | Q8.8 (256 = 1.00) |
 
-Injector duty is computed as `last_pulse_width_us × 1000 / period_us`, where `period_us` is either 16 667 µs (60 Hz) or `60 000 000 / rpm` (sync mode). Injector open duration is `last_pulse_width_us` transmitted directly. The powerband flag is set only when the ramp has fully reached the in-powerband end; the multiplier shows the intermediate ramp position. See [powerband.md](powerband.md).
+Injector duty is computed as `last_pulse_width_us × 1000 / period_us`, where `period_us` is either 16 667 µs (60 Hz) or `60 000 000 / rpm` (sync mode). Injector open duration is `last_pulse_width_us` transmitted directly. The powerband flag is set only when the ramp has fully reached the in-powerband end; the multiplier shows the intermediate ramp position. See [injection.md — Low-Load (Powerband) Multiplier](injection.md#low-load-powerband-multiplier).
 
 ### Injection Map
 
@@ -128,7 +128,7 @@ Q8.8 encoding: 256 = 1.0 (no correction).
 | `0x16` | `CMD_READ_ACCEL_PUMP` | ECU → PC (response) | 6 bytes — see layout below |
 | `0x15` | `CMD_WRITE_ACCEL_PUMP` | PC → ECU | 6 bytes same layout; ECU saves, responds ACK |
 
-**Accel pump layout (6 bytes):** threshold (uint16 BE), extra_us (uint16 BE), duration_ms (uint16 BE). See [accel_pump.md](accel_pump.md).
+**Accel pump layout (6 bytes):** threshold (uint16 BE), extra_us (uint16 BE), duration_ms (uint16 BE). See [injection.md — Accelerator Pump Enrichment](injection.md#accelerator-pump-enrichment).
 
 ### Shift Cut
 
@@ -150,7 +150,7 @@ The write command responds NACK if the payload length is not 7, if `duration_ms`
 | `0x1A` | `CMD_READ_POWERBAND` | ECU → PC (response) | 7 bytes — see layout below |
 | `0x19` | `CMD_WRITE_POWERBAND` | PC → ECU | 7 bytes same layout; ECU saves, responds ACK |
 
-**Powerband layout (7 bytes):** multiplier (uint16 BE, Q8.8 — 256 = 1.00), threshold_rpm (uint16 BE), threshold_tps (uint8 percent), delay_rev (uint16 BE). See [powerband.md](powerband.md).
+**Powerband layout (7 bytes):** multiplier (uint16 BE, Q8.8 — 256 = 1.00), threshold_rpm (uint16 BE), threshold_tps (uint8 percent), delay_rev (uint16 BE). See [injection.md — Low-Load (Powerband) Multiplier](injection.md#low-load-powerband-multiplier).
 
 ---
 
